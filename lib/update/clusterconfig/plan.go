@@ -116,7 +116,7 @@ func newOperationPlan(
 
 func shouldUpdateNodes(clusterConfig clusterconfig.Interface, numNodes int) bool {
 	var hasComponentUpdate bool
-	if config := clusterConfig.GetGlobalConfig(); config != nil && len(config.FeatureGates) != 0 {
+	if len(clusterConfig.GetGlobalConfig().FeatureGates) != 0 {
 		hasComponentUpdate = true
 	}
 	return (clusterConfig.GetKubeletConfig() != nil || hasComponentUpdate) && numNodes != 0

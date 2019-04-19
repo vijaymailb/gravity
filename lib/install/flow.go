@@ -109,7 +109,6 @@ func (i *Installer) NewClusterRequest() ops.NewSiteRequest {
 		AppPackage:   i.AppPackage.String(),
 		AccountID:    i.AccountID,
 		Email:        fmt.Sprintf("installer@%v", i.SiteDomain),
-		Provider:     i.CloudProvider,
 		DomainName:   i.SiteDomain,
 		InstallToken: i.Config.Token,
 		ServiceUser: storage.OSUser{
@@ -120,9 +119,10 @@ func (i *Installer) NewClusterRequest() ops.NewSiteRequest {
 		CloudConfig: storage.CloudConfig{
 			GCENodeTags: i.Config.GCENodeTags,
 		},
-		DNSOverrides: i.DNSOverrides,
-		DNSConfig:    i.DNSConfig,
-		Docker:       i.Docker,
+		DNSOverrides:  i.DNSOverrides,
+		DNSConfig:     i.DNSConfig,
+		Docker:        i.Docker,
+		ClusterConfig: i.Config.ClusterConfig,
 	}
 }
 
@@ -165,9 +165,7 @@ func (i *Installer) StartCLIInstall() (err error) {
 				Docker: i.Docker,
 			},
 			OnPrem: storage.OnPremVariables{
-				PodCIDR:     i.PodCIDR,
-				ServiceCIDR: i.ServiceCIDR,
-				VxlanPort:   i.VxlanPort,
+				VxlanPort: i.VxlanPort,
 			},
 		},
 		Profiles: ServerRequirements(*i.flavor),

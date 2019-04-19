@@ -23,7 +23,8 @@ import (
 
 	"github.com/gravitational/gravity/lib/constants"
 	"github.com/gravitational/gravity/lib/defaults"
-	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/schema"
+	"github.com/gravitational/gravity/lib/utils"
 
 	teleservices "github.com/gravitational/teleport/lib/services"
 	teleutils "github.com/gravitational/teleport/lib/utils"
@@ -38,16 +39,19 @@ type Interface interface {
 	// GetKubeletConfig returns the configuration of the kubelet
 	GetKubeletConfig() *Kubelet
 	// GetGlobalConfig returns the global configuration
-	GetGlobalConfig() *Global
-	// SetCloudProvider sets the cloud provider for this configuration
-	SetCloudProvider(provider string)
+	GetGlobalConfig() Global
+	// MergeFrom merges configuration from other
+	MergeFrom(other Interface)
 }
 
 // New returns a new instance of the resource initialized to specified spec
-func New(spec Spec) *Resource {
+func New(spec Spec) (*Resource, error) {
+	if err := spec.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	res := newEmpty()
 	res.Spec = spec
-	return res
+	return res, nil
 }
 
 // NewEmpty returns a new instance of the resource initialized to defaults
@@ -105,16 +109,49 @@ func (r *Resource) GetKubeletConfig() *Kubelet {
 }
 
 // GetGlobalConfig returns the global configuration
-func (r *Resource) GetGlobalConfig() *Global {
+func (r *Resource) GetGlobalConfig() Global {
 	return r.Spec.Global
 }
 
-// SetCloudProvider sets the cloud provider for this configuration
-func (r *Resource) SetCloudProvider(provider string) {
-	if r.Spec.Global == nil {
-		r.Spec.Global = &Global{}
+// MergeFrom merges configuration from other
+func (r *Resource) MergeFrom(other Interface) {
+	globalConfig := other.GetGlobalConfig()
+	if globalConfig.ServiceCIDR != "" {
+		r.Spec.Global.ServiceCIDR = globalConfig.ServiceCIDR
 	}
-	r.Spec.Global.CloudProvider = provider
+	if globalConfig.PodCIDR != "" {
+		r.Spec.Global.PodCIDR = globalConfig.PodCIDR
+	}
+	if globalConfig.PodCIDR != "" {
+		r.Spec.Global.PodCIDR = globalConfig.PodCIDR
+	}
+	if globalConfig.CloudConfig != "" {
+		r.Spec.Global.CloudConfig = globalConfig.CloudConfig
+	}
+	if globalConfig.ProxyPortRange != "" {
+		r.Spec.Global.ProxyPortRange = globalConfig.ProxyPortRange
+	}
+	if globalConfig.ServiceNodePortRange != "" {
+		r.Spec.Global.ServiceNodePortRange = globalConfig.ServiceNodePortRange
+	}
+	if len(globalConfig.FeatureGates) != 0 {
+		for k, v := range globalConfig.FeatureGates {
+			r.Spec.Global.FeatureGates[k] = v
+		}
+	}
+	kubeletConfig := other.GetKubeletConfig()
+	if kubeletConfig == nil {
+		return
+	}
+	if r.Spec.ComponentConfigs.Kubelet == nil {
+		r.Spec.ComponentConfigs.Kubelet = &Kubelet{}
+	}
+	if len(kubeletConfig.ExtraArgs) != 0 {
+		r.Spec.ComponentConfigs.Kubelet.ExtraArgs = kubeletConfig.ExtraArgs
+	}
+	if len(kubeletConfig.Config) != 0 {
+		r.Spec.ComponentConfigs.Kubelet.Config = kubeletConfig.Config
+	}
 }
 
 // Unmarshal unmarshals the resource from either YAML- or JSON-encoded data
@@ -148,7 +185,7 @@ func Unmarshal(data []byte) (*Resource, error) {
 		return &config, nil
 	}
 	return nil, trace.BadParameter(
-		"%v resource version %q is not supported", storage.KindClusterConfiguration, hdr.Version)
+		"%v resource version %q is not supported", Kind, hdr.Version)
 }
 
 // Marshal marshals this resource as JSON
@@ -156,21 +193,44 @@ func Marshal(config Interface, opts ...teleservices.MarshalOption) ([]byte, erro
 	return json.Marshal(config)
 }
 
-// ToUnknown returns this resource as a storage.UnknownResource
-func ToUnknown(config Interface) (*storage.UnknownResource, error) {
-	bytes, err := Marshal(config)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// checkAndSetDefaults validates this object
+func (r *Spec) checkAndSetDefaults() error {
+	if r.Global.CloudProvider == "" {
+		r.Global.CloudProvider = schema.ProviderGeneric
 	}
-	res := newEmpty()
-	return &storage.UnknownResource{
-		ResourceHeader: teleservices.ResourceHeader{
-			Kind:     res.Kind,
-			Version:  res.Version,
-			Metadata: res.Metadata,
-		},
-		Raw: bytes,
-	}, nil
+	if err := schema.ValidateCloudProvider(r.Global.CloudProvider); err != nil {
+		return trace.Wrap(err)
+	}
+	// Default service/pod CIDRs
+	if r.Global.PodCIDR == "" {
+		r.Global.PodCIDR = defaults.PodSubnet
+	}
+	if r.Global.ServiceCIDR == "" {
+		r.Global.ServiceCIDR = defaults.ServiceSubnet
+	}
+	if r.Global.CloudProvider == schema.ProviderAWS {
+		// FIXME(dmitri): is this accurate?
+		// I could not find where service CIDR might be set to anything other than the default
+		// on AWS
+		subnet := defaults.AWSVPCCIDR
+		// select the overlay subnet non-overlapping with the machines subnet
+		overlay, err := utils.SelectSubnet([]string{subnet})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// and select the service subnet non-overlapping with the pod/machine subnets
+		service, err := utils.SelectSubnet([]string{subnet, overlay})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		r.Global.PodCIDR = overlay
+		r.Global.ServiceCIDR = service
+	}
+	err := utils.ValidateKubernetesSubnets(r.Global.PodCIDR, r.Global.ServiceCIDR)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // Spec defines the cluster configuration resource
@@ -179,7 +239,7 @@ type Spec struct {
 	ComponentConfigs
 	// TODO: Scheduler, ControllerManager, Proxy
 	// Global describes global configuration
-	Global *Global `json:"global,omitempty"`
+	Global Global `json:"global"`
 }
 
 // ComponentsConfigs groups component configurations
@@ -208,7 +268,7 @@ type Global struct {
 	CloudProvider string `json:"cloudProvider,omitempty"`
 	// CloudConfig describes the cloud configuration.
 	// The configuration is provider-specific
-	CloudConfig string `json:"cloudConfig"`
+	CloudConfig string `json:"cloudConfig,omitempty"`
 	// ServiceCIDR represents the IP range from which to assign service cluster IPs.
 	// This must not overlap with any IP ranges assigned to nodes for pods.
 	// Targets: api server, controller manager
@@ -229,6 +289,9 @@ type Global struct {
 	// Targets: all components
 	FeatureGates map[string]bool `json:"featureGates,omitempty"`
 }
+
+// Kind defines the resource kind for cluster configuration
+const Kind = "clusterconfiguration"
 
 // specSchemaTemplate is JSON schema for the cluster configuration resource
 const specSchemaTemplate = `{
@@ -387,7 +450,7 @@ func getSpecSchema() string {
 
 func newEmpty() *Resource {
 	return &Resource{
-		Kind:    storage.KindClusterConfiguration,
+		Kind:    Kind,
 		Version: "v1",
 		Metadata: teleservices.Metadata{
 			Name:      constants.ClusterConfigurationMap,

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/gravity/lib/rpc/proto"
 	"github.com/gravitational/gravity/lib/schema"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -80,13 +81,19 @@ func (s *PlanSuite) SetUpSuite(c *check.C) {
 		Addrs: []string{"127.0.0.3"},
 		Port:  10053,
 	}
+	clusterConfig, err := clusterconfig.New(clusterconfig.Spec{
+		Global: clusterconfig.Global{
+			CloudProvider: schema.ProviderAWS,
+		},
+	})
+	c.Assert(err, check.IsNil)
 	s.cluster, err = s.services.Operator.CreateSite(
 		ops.NewSiteRequest{
-			AccountID:  account.ID,
-			DomainName: "example.com",
-			AppPackage: s.appPackage.String(),
-			Provider:   schema.ProviderAWS,
-			DNSConfig:  s.dnsConfig,
+			AccountID:     account.ID,
+			DomainName:    "example.com",
+			AppPackage:    s.appPackage.String(),
+			DNSConfig:     s.dnsConfig,
+			ClusterConfig: *clusterConfig,
 		})
 	c.Assert(err, check.IsNil)
 	_, err = s.services.Users.CreateClusterAdminAgent(s.cluster.Domain,

@@ -681,10 +681,6 @@ func addResources(builder *PlanBuilder, resourceBytes []byte, runtimeResources [
 			builder.env = env.GetKeyValues()
 			configmap := opsservice.NewEnvironmentConfigMap(env.GetKeyValues())
 			kubernetesResources = append(kubernetesResources, configmap)
-		case storage.KindClusterConfiguration:
-			builder.config = res.Raw
-			configmap := opsservice.NewConfigurationConfigMap(res.Raw)
-			kubernetesResources = append(kubernetesResources, configmap)
 		default:
 			// Filter out resources that are created using the regular workflow
 			rest = append(rest, res)

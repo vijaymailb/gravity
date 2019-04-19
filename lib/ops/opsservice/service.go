@@ -411,16 +411,6 @@ func (o *Operator) validateNewSiteRequest(req *ops.NewSiteRequest) error {
 		return trace.BadParameter("missing AppPackage")
 	}
 
-	switch req.Provider {
-	case schema.ProviderOnPrem, schema.ProviderGeneric, schema.ProviderAWS, schema.ProvisionerAWSTerraform, schema.ProviderGCE:
-	default:
-		if req.Provider == "" {
-			return trace.BadParameter("missing Provider")
-		}
-		return trace.BadParameter(
-			"provider %q is not supported", req.Provider)
-	}
-
 	if !cstrings.IsValidDomainName(req.DomainName) {
 		return trace.BadParameter(
 			"domain name should be a valid domain name, got %q", req.DomainName)
@@ -552,12 +542,14 @@ func (o *Operator) CreateSite(r ops.NewSiteRequest) (*ops.Site, error) {
 	}
 
 	clusterData := &storage.Site{
-		AccountID:    account.ID,
-		Domain:       r.DomainName,
-		Created:      o.cfg.Clock.UtcNow(),
-		CreatedBy:    r.Email,
-		State:        ops.SiteStateNotInstalled,
-		Provider:     r.Provider,
+		AccountID: account.ID,
+		Domain:    r.DomainName,
+		Created:   o.cfg.Clock.UtcNow(),
+		CreatedBy: r.Email,
+		State:     ops.SiteStateNotInstalled,
+		// This is left for backwards compatibilty
+		// with the source of truth in cluster configuration
+		Provider:     r.ClusterConfig.GetGlobalConfig().CloudProvider,
 		License:      r.License,
 		Labels:       labels,
 		App:          app.PackageEnvelope.ToPackage(),
@@ -584,10 +576,15 @@ func (o *Operator) CreateSite(r ops.NewSiteRequest) (*ops.Site, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	err = b.CreateGravityClusterConfig(r.DomainName, &r.ClusterConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	st, err := newSite(&site{
 		domainName: clusterData.Domain,
 		key:        ops.SiteKey{AccountID: account.ID, SiteDomain: clusterData.Domain},
-		provider:   clusterData.Provider,
 		service:    o,
 		appService: o.cfg.Apps,
 		app:        app,
@@ -596,6 +593,7 @@ func (o *Operator) CreateSite(r ops.NewSiteRequest) (*ops.Site, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err = os.MkdirAll(st.siteDir(), defaults.SharedDirMask); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -642,7 +640,7 @@ func (o *Operator) CreateSite(r ops.NewSiteRequest) (*ops.Site, error) {
 		}
 	}
 
-	return convertSite(*clusterData, o.cfg.Apps)
+	return convertSite(*clusterData, o.cfg.Apps, o.backend())
 }
 
 // GetLocalUser returns local gravity site admin
@@ -691,7 +689,7 @@ func (o *Operator) GetLocalSite() (*ops.Site, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err := convertSite(*record, o.cfg.Apps)
+	cluster, err := convertSite(*record, o.cfg.Apps, o.backend())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1112,15 +1110,11 @@ func (o *Operator) GetSiteByDomain(domainName string) (*ops.Site, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return convertSite(*st, o.cfg.Apps)
+	return convertSite(*st, o.cfg.Apps, o.backend())
 }
 
 func (o *Operator) GetSite(key ops.SiteKey) (*ops.Site, error) {
-	st, err := o.backend().GetSite(key.SiteDomain)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return convertSite(*st, o.cfg.Apps)
+	return o.GetSiteByDomain(key.SiteDomain)
 }
 
 func (o *Operator) GetSites(accountID string) ([]ops.Site, error) {
@@ -1130,7 +1124,7 @@ func (o *Operator) GetSites(accountID string) ([]ops.Site, error) {
 	}
 	sites := make([]ops.Site, len(sts))
 	for i, st := range sts {
-		s, err := convertSite(st, o.cfg.Apps)
+		s, err := convertSite(st, o.cfg.Apps, o.backend())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1363,6 +1357,11 @@ func (o *Operator) openSiteInternal(data *storage.Site) (*site, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	clusterConfig, err := o.backend().GetGravityClusterConfig(data.Domain)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	app, err := o.cfg.Apps.GetApp(*sitePackage)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -1374,15 +1373,15 @@ func (o *Operator) openSiteInternal(data *storage.Site) (*site, error) {
 	}
 
 	st, err := newSite(&site{
-		service:     o,
-		key:         ops.SiteKey{AccountID: data.AccountID, SiteDomain: data.Domain},
-		domainName:  data.Domain,
-		provider:    data.Provider,
-		license:     data.License,
-		app:         app,
-		appService:  o.cfg.Apps,
-		seedConfig:  o.cfg.SeedConfig,
-		backendSite: data,
+		service:       o,
+		key:           ops.SiteKey{AccountID: data.AccountID, SiteDomain: data.Domain},
+		domainName:    data.Domain,
+		license:       data.License,
+		app:           app,
+		appService:    o.cfg.Apps,
+		seedConfig:    o.cfg.SeedConfig,
+		backendSite:   data,
+		clusterConfig: clusterConfig,
 	})
 
 	return st, trace.Wrap(err)

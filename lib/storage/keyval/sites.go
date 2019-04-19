@@ -18,6 +18,7 @@ package keyval
 
 import (
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 
 	"github.com/gravitational/trace"
 )
@@ -157,6 +158,39 @@ func (b *backend) SetClusterImported() error {
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "already imported")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (b *backend) CreateGravityClusterConfig(clusterName string, config clusterconfig.Interface) error {
+	err := b.createVal(b.key(sitesP, clusterName, gravityClusterConfigP), config, forever)
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.Wrap(err, "cluster configuration for %v already exists", clusterName)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (b *backend) GetGravityClusterConfig(clusterName string) (clusterconfig.Interface, error) {
+	var config clusterconfig.Resource
+	if err := b.getVal(b.key(sitesP, clusterName, gravityClusterConfigP), &config); err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("cluster configuration for %v not found", clusterName)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return &config, nil
+}
+
+func (b *backend) UpdateGravityClusterConfig(clusterName string, config clusterconfig.Interface) error {
+	err := b.updateVal(b.key(sitesP, clusterName, gravityClusterConfigP), config, forever)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.Wrap(err, "cluster configuration for %v not found", clusterName)
 		}
 		return trace.Wrap(err)
 	}

@@ -37,6 +37,7 @@ import (
 	rpcserver "github.com/gravitational/gravity/lib/rpc/server"
 	"github.com/gravitational/gravity/lib/schema"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 	"github.com/gravitational/gravity/lib/users"
 
 	"github.com/cloudflare/cfssl/csr"
@@ -102,11 +103,17 @@ func (s *AgentSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	clusterConfig, err := clusterconfig.New(clusterconfig.Spec{
+		Global: clusterconfig.Global{
+			CloudProvider: schema.ProviderOnPrem,
+		},
+	})
+	c.Assert(err, IsNil)
 	s.cluster, err = s.installer.CreateSite(ops.NewSiteRequest{
-		AccountID:  acct.ID,
-		AppPackage: s.testApp.String(),
-		Provider:   schema.ProvisionerOnPrem,
-		DomainName: "test.localdomain",
+		AccountID:     acct.ID,
+		AppPackage:    s.testApp.String(),
+		DomainName:    "test.localdomain",
+		ClusterConfig: *clusterConfig,
 	})
 	c.Assert(err, IsNil)
 
@@ -380,19 +387,19 @@ func newSystemInfo(hostname string) rpcserver.TestSystemInfo {
 	sysinfo := storage.NewSystemInfo(storage.SystemSpecV2{
 		Hostname: hostname,
 		Filesystems: []storage.Filesystem{
-			storage.Filesystem{
+			{
 				DirName: "/foo/bar",
 				Type:    "tmpfs",
 			},
 		},
 		FilesystemStats: map[string]storage.FilesystemUsage{
-			"/foo/bar": storage.FilesystemUsage{
+			"/foo/bar": {
 				TotalKB: 512,
 				FreeKB:  0,
 			},
 		},
 		NetworkInterfaces: map[string]storage.NetworkInterface{
-			"device0": storage.NetworkInterface{
+			"device0": {
 				Name: "device0",
 				IPv4: "172.168.0.1",
 			},

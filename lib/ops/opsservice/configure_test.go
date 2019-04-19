@@ -46,10 +46,16 @@ var _ = check.Suite(&ConfigureSuite{})
 func (s *ConfigureSuite) SetUpTest(c *check.C) {
 	s.cluster = &site{
 		domainName: "example.com",
-		provider:   "gce",
 		backendSite: &storage.Site{
 			CloudConfig: storage.CloudConfig{
 				GCENodeTags: []string{"example-com"},
+			},
+		},
+		clusterConfig: &clusterconfig.Resource{
+			Spec: clusterconfig.Spec{
+				Global: clusterconfig.Global{
+					CloudProvider: schema.ProviderGCE,
+				},
 			},
 		},
 	}
@@ -119,10 +125,6 @@ func (s *ConfigureSuite) TestGeneratesPlanetConfigPackage(c *check.C) {
 			SiteDomain: s.cluster.domainName,
 			InstallExpand: &storage.InstallExpandOperationState{
 				Servers: []storage.Server{server},
-				Subnets: storage.Subnets{
-					Service: "10.0.0.1/8",
-					Overlay: "10.0.1.1/8",
-				},
 			},
 		},
 		server: ProvisionedServer{
@@ -151,8 +153,8 @@ func (s *ConfigureSuite) TestGeneratesPlanetConfigPackage(c *check.C) {
 				ComponentConfigs: clusterconfig.ComponentConfigs{
 					Kubelet: &clusterconfig.Kubelet{Config: configBytes},
 				},
-				Global: &clusterconfig.Global{
-					CloudProvider: "gce",
+				Global: clusterconfig.Global{
+					CloudProvider: schema.ProviderGCE,
 					CloudConfig: `
 [global]
 node-tags=example-com
@@ -161,6 +163,8 @@ multizone=true`,
 						"FeatureA": true,
 						"FeatureB": false,
 					},
+					ServiceCIDR: "10.0.0.1/8",
+					PodCIDR:     "10.0.1.1/8",
 				},
 			},
 		},
@@ -209,7 +213,6 @@ multizone=true`,
 }
 
 func (s *ConfigureSuite) TestCanSetCloudProviderWithoutCloudConfig(c *check.C) {
-	s.cluster.provider = schema.ProviderGCE
 	server := storage.Server{
 		Hostname:    "node-1",
 		ClusterRole: "master",
@@ -234,10 +237,6 @@ func (s *ConfigureSuite) TestCanSetCloudProviderWithoutCloudConfig(c *check.C) {
 			SiteDomain: s.cluster.domainName,
 			InstallExpand: &storage.InstallExpandOperationState{
 				Servers: []storage.Server{server},
-				Subnets: storage.Subnets{
-					Service: "10.0.0.1/8",
-					Overlay: "10.0.1.1/8",
-				},
 			},
 		},
 		server: ProvisionedServer{
@@ -258,7 +257,13 @@ func (s *ConfigureSuite) TestCanSetCloudProviderWithoutCloudConfig(c *check.C) {
 				Name:      constants.ClusterConfigurationMap,
 				Namespace: defaults.KubeSystemNamespace,
 			},
-			Spec: clusterconfig.Spec{},
+			Spec: clusterconfig.Spec{
+				Global: clusterconfig.Global{
+					CloudProvider: schema.ProviderGCE,
+					ServiceCIDR:   "10.0.0.1/8",
+					PodCIDR:       "10.0.1.1/8",
+				},
+			},
 		},
 	}
 	args, err := s.cluster.getPlanetConfig(config)

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/gravity/lib/defaults"
 	"github.com/gravitational/gravity/lib/loc"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
@@ -115,16 +116,24 @@ func CreateCluster(operator Operator, clusterI storage.Cluster) (*SiteOperationK
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterConfig, err := clusterconfig.New(clusterconfig.Spec{
+		Global: clusterconfig.Global{
+			CloudProvider: cluster.Spec.Provider,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	req := NewSiteRequest{
-		DomainName: cluster.Metadata.Name,
-		AppPackage: appPackage.String(),
-		AccountID:  defaults.SystemAccountID,
-		Email:      userInfo.User.GetName(),
-		Provider:   cluster.Spec.Provider,
-		Location:   cluster.Spec.AWS.Region,
-		Labels:     cluster.Metadata.Labels,
-		Resources:  []byte(cluster.GetResources()),
-		License:    cluster.GetLicense(),
+		DomainName:    cluster.Metadata.Name,
+		AppPackage:    appPackage.String(),
+		AccountID:     defaults.SystemAccountID,
+		Email:         userInfo.User.GetName(),
+		Location:      cluster.Spec.AWS.Region,
+		Labels:        cluster.Metadata.Labels,
+		Resources:     []byte(cluster.GetResources()),
+		License:       cluster.GetLicense(),
+		ClusterConfig: *clusterConfig,
 	}
 	site, err := operator.CreateSite(req)
 	if err != nil {

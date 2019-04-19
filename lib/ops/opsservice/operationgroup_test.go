@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/gravity/lib/ops/suite"
 	"github.com/gravitational/gravity/lib/schema"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 
 	"gopkg.in/check.v1"
 )
@@ -48,11 +49,17 @@ func (s *OperationGroupSuite) SetUpTest(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
+	clusterConfig, err := clusterconfig.New(clusterconfig.Spec{
+		Global: clusterconfig.Global{
+			CloudProvider: schema.ProviderOnPrem,
+		},
+	})
+	c.Assert(err, check.IsNil)
 	s.cluster, err = s.operator.CreateSite(ops.NewSiteRequest{
-		AccountID:  account.ID,
-		AppPackage: app.String(),
-		Provider:   schema.ProvisionerOnPrem,
-		DomainName: "operationgroup.test",
+		AccountID:     account.ID,
+		AppPackage:    app.String(),
+		DomainName:    "operationgroup.test",
+		ClusterConfig: *clusterConfig,
 	})
 	c.Assert(err, check.IsNil)
 }
@@ -113,7 +120,7 @@ func (s *OperationGroupSuite) TestExpandMaxConcurrency(c *check.C) {
 			State:      ops.OperationStateExpandInitiated,
 			InstallExpand: &storage.InstallExpandOperationState{
 				Profiles: map[string]storage.ServerProfile{
-					"node": storage.ServerProfile{
+					"node": {
 						ServiceRole: string(schema.ServiceRoleNode),
 					},
 				},
@@ -132,7 +139,7 @@ func (s *OperationGroupSuite) TestExpandMaxConcurrency(c *check.C) {
 		State:      ops.OperationStateExpandInitiated,
 		InstallExpand: &storage.InstallExpandOperationState{
 			Profiles: map[string]storage.ServerProfile{
-				"node": storage.ServerProfile{
+				"node": {
 					ServiceRole: string(schema.ServiceRoleNode),
 				},
 			},
@@ -228,7 +235,7 @@ func (s *OperationGroupSuite) TestMultiExpandClusterState(c *check.C) {
 			State:      ops.OperationStateExpandInitiated,
 			InstallExpand: &storage.InstallExpandOperationState{
 				Profiles: map[string]storage.ServerProfile{
-					"node": storage.ServerProfile{
+					"node": {
 						ServiceRole: string(schema.ServiceRoleNode),
 					},
 				},

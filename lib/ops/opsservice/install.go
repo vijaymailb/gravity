@@ -26,7 +26,6 @@ import (
 	libapp "github.com/gravitational/gravity/lib/app"
 	"github.com/gravitational/gravity/lib/checks"
 	awsapi "github.com/gravitational/gravity/lib/cloudprovider/aws"
-	awssvc "github.com/gravitational/gravity/lib/cloudprovider/aws/service"
 	"github.com/gravitational/gravity/lib/constants"
 	"github.com/gravitational/gravity/lib/defaults"
 	"github.com/gravitational/gravity/lib/httplib"
@@ -34,7 +33,6 @@ import (
 	"github.com/gravitational/gravity/lib/schema"
 	"github.com/gravitational/gravity/lib/storage"
 	"github.com/gravitational/gravity/lib/users"
-	"github.com/gravitational/gravity/lib/utils"
 
 	"github.com/dustin/go-humanize"
 	licenseapi "github.com/gravitational/license"
@@ -152,7 +150,7 @@ func (s *site) createInstallExpandOperation(operationType, operationInitialState
 
 	variables.System = *systemVars
 	agents := make(map[string]storage.AgentProfile, len(profiles))
-	for role, _ := range profiles {
+	for role := range profiles {
 		instructions, err := s.getDownloadInstructions(token, role)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -181,13 +179,6 @@ func (s *site) createInstallExpandOperation(operationType, operationInitialState
 		Package:  s.app.Package,
 	}
 
-	subnets, err := s.selectSubnets(*op)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	op.InstallExpand.Subnets = *subnets
-	ctx.Debugf("selected subnets: %v", subnets)
-
 	key, err := s.getOperationGroup().createSiteOperation(*op)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -199,56 +190,6 @@ func (s *site) createInstallExpandOperation(operationType, operationInitialState
 	})
 
 	return key, nil
-}
-
-func (s *site) selectSubnets(operation ops.SiteOperation) (*storage.Subnets, error) {
-	// for expand operation, get them from the completed install operation
-	if operation.Type == ops.OperationExpand {
-		op, err := ops.GetCompletedInstallOperation(s.key, s.service)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &op.InstallExpand.Subnets, nil
-	}
-
-	// we do not control subnets for onprem scenario so just use default subnets
-	if !(s.cloudProviderName() == schema.ProviderAWS && operation.Provisioner == schema.ProvisionerAWSTerraform) {
-		overlaySubnet := operation.InstallExpand.Vars.OnPrem.PodCIDR
-		if overlaySubnet == "" {
-			overlaySubnet = defaults.PodSubnet
-		}
-		serviceSubnet := operation.InstallExpand.Vars.OnPrem.ServiceCIDR
-		if serviceSubnet == "" {
-			serviceSubnet = defaults.ServiceSubnet
-		}
-		return &storage.Subnets{
-			Overlay: overlaySubnet,
-			Service: serviceSubnet,
-		}, nil
-	}
-
-	// machines on AWS will receive IPs from this subnet
-	subnet := operation.GetVars().AWS.VPCCIDR
-	if subnet == "" {
-		return nil, trace.BadParameter("no subnet CIDR in operation vars: %v", operation)
-	}
-
-	// select the overlay subnet non-overlapping with the machines subnet
-	overlay, err := utils.SelectSubnet([]string{subnet})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// and select the service subnet non-overlapping with the pod/machine subnets
-	service, err := utils.SelectSubnet([]string{subnet, overlay})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &storage.Subnets{
-		Overlay: overlay,
-		Service: service,
-	}, nil
 }
 
 // updateRequestVars updates AWS variables from a site create/expand request with defaults.
@@ -279,35 +220,9 @@ func (s *site) updateRequestVars(ctx *operationContext, vars *storage.OperationV
 		return nil
 	}
 
-	awsClient := awssvc.New(vars.AWS.AccessKey, vars.AWS.SecretKey, vars.AWS.SessionToken)
-
 	region := vars.AWS.Region
 	if mapping, ok := awsapi.Regions[awsapi.RegionName(region)]; ok {
 		vars.AWS.AMI = mapping.Image
-	}
-
-	// pick a subnet when installing into an existing VPC
-	vpcID := vars.AWS.VPCID
-	if vpcID != "" && op.Type == ops.OperationInstall {
-		vpcBlock, subnetBlocks, err := awsClient.GetCIDRBlocks(region, vpcID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ctx.Infof("found subnets for %v/%v (%v): %v", region, vpcID, vpcBlock, subnetBlocks)
-
-		freeSubnet, err := utils.SelectVPCSubnet(vpcBlock, subnetBlocks)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ctx.Infof("selected /24 subnet for %v/%v: %v", region, vpcID, freeSubnet)
-		vars.AWS.SubnetCIDR = freeSubnet
-
-		igwID, err := awsClient.GetInternetGatewayID(region, vpcID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ctx.Infof("found internet gateway for %v/%v: %v", region, vpcID, igwID)
-		vars.AWS.InternetGatewayID = igwID
 	}
 
 	return nil

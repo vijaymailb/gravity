@@ -515,7 +515,7 @@ func (s *site) launchAgent(ctx *operationContext, server storage.Server) (*serve
 		"--service-uid", s.uid(),
 		"--service-gid", s.gid(),
 		"--service-name", serviceName,
-		"--cloud-provider", s.provider,
+		"--cloud-provider", s.provider(),
 	}
 	out, err := teleportRunner.Run(s.gravityCommand(command...)...)
 	if err != nil {

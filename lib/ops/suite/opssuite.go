@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/gravity/lib/pack"
 	"github.com/gravitational/gravity/lib/schema"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 	"github.com/gravitational/gravity/lib/users"
 
 	"github.com/gravitational/trace"
@@ -100,11 +101,17 @@ func (s *OpsSuite) SitesCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(sites), Equals, 0)
 
+	clusterConfig, err := clusterconfig.New(clusterconfig.Spec{
+		Global: clusterconfig.Global{
+			CloudProvider: schema.ProviderOnPrem,
+		},
+	})
+	c.Assert(err, IsNil)
 	site, err := s.O.CreateSite(ops.NewSiteRequest{
-		AppPackage: s.testApp.String(),
-		AccountID:  a.ID,
-		Provider:   schema.ProviderOnPrem,
-		DomainName: "example.com",
+		AppPackage:    s.testApp.String(),
+		AccountID:     a.ID,
+		DomainName:    "example.com",
+		ClusterConfig: *clusterConfig,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(site.State, Equals, ops.SiteStateNotInstalled)
@@ -178,11 +185,17 @@ func (s *OpsSuite) InstallInstructions(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	clusterConfig, err := clusterconfig.New(clusterconfig.Spec{
+		Global: clusterconfig.Global{
+			CloudProvider: schema.ProviderOnPrem,
+		},
+	})
+	c.Assert(err, IsNil)
 	site, err := s.O.CreateSite(ops.NewSiteRequest{
-		AppPackage: s.testApp.String(),
-		AccountID:  a.ID,
-		Provider:   schema.ProviderOnPrem,
-		DomainName: "example.com",
+		AppPackage:    s.testApp.String(),
+		AccountID:     a.ID,
+		DomainName:    "example.com",
+		ClusterConfig: *clusterConfig,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(site.State, Equals, ops.SiteStateNotInstalled)

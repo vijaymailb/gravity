@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/gravity/lib/defaults"
 	"github.com/gravitational/gravity/lib/loc"
 	"github.com/gravitational/gravity/lib/schema"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 	"github.com/gravitational/gravity/lib/utils"
 	"k8s.io/helm/pkg/repo"
 
@@ -571,6 +572,7 @@ type Site struct {
 	// ServiceUser specifies the service user for planet
 	ServiceUser OSUser `json:"service_user"`
 	// CloudConfig provides additional cloud configuration
+	// DEPRECATED: this attribute is replaced by cloud configuration in ClusterConfig
 	CloudConfig CloudConfig `json:"cloud_config"`
 	// DNSOverrides contains DNS overrides for this cluster
 	// TODO(dmitri): move to DNSConfig
@@ -1478,6 +1480,7 @@ type Backend interface {
 	LegacyRoles
 	SystemMetadata
 	Charts
+	GravityClusterConfiguration
 }
 
 const (
@@ -1756,9 +1759,6 @@ type InstallExpandOperationState struct {
 	// Agents defines the list of agent attributes (like download instructions,
 	// etc.) to use on the client
 	Agents map[string]AgentProfile `json:"agents"`
-	// Subnets describes selected overlay/service network subnets for this
-	// operation
-	Subnets Subnets `json:"subnets"`
 	// Vars is a set of variables specific to this operation, e.g. AWS
 	// credentials or region
 	Vars OperationVariables `json:"vars"`
@@ -1830,10 +1830,6 @@ func (d DockerConfig) Check() error {
 
 // OnPremVariables is a set of operation variables specific to onprem provider
 type OnPremVariables struct {
-	// PodCIDR specifies the network range for pods
-	PodCIDR string `json:"pod_cidr"`
-	// ServiceCIDR specifies the network range for services
-	ServiceCIDR string `json:"service_cidr"`
 	// VxlanPort is the overlay network port
 	VxlanPort int `json:"vxlan_port"`
 }
@@ -1852,28 +1848,16 @@ type AWSVariables struct {
 	SessionToken string `json:"session_token"`
 	// VPCID is the AWS VPC ID
 	VPCID string `json:"vpc_id"`
-	// VPCCIDR is the AWS VPC CIDR
-	VPCCIDR string `json:"vpc_cidr"`
 	// SubnetID is the AWS subnet ID
 	SubnetID string `json:"subnet_id"`
-	// SubnetCIDR is the AWS subnet CIDR
-	SubnetCIDR string `json:"subnet_cidr"`
-	// InternetGatewayID is the AWS internet gateway ID
-	InternetGatewayID string `json:"igw_id"`
 	// KeyPair is the AWS key pair name
 	KeyPair string `json:"key_pair"`
 }
 
-// SetDefaults fills in some unset fiels with their default values if they have them
+// SetDefaults sets defaults for empty attributes
 func (v *AWSVariables) SetDefaults() {
 	if v.Region == "" {
 		v.Region = defaults.AWSRegion
-	}
-	if v.VPCCIDR == "" {
-		v.VPCCIDR = defaults.AWSVPCCIDR
-	}
-	if v.SubnetCIDR == "" {
-		v.SubnetCIDR = defaults.AWSSubnetCIDR
 	}
 }
 
@@ -2100,4 +2084,11 @@ type Charts interface {
 	CompareAndSwapIndexFile(new, existing *repo.IndexFile) error
 	// UpsertIndexFile creates or replaces chart repository index file.
 	UpsertIndexFile(repo.IndexFile) error
+}
+
+// GravityClusterConfiguration defines an interface to manage gravity-specific cluster configuration
+type GravityClusterConfiguration interface {
+	CreateGravityClusterConfig(clusterName string, config clusterconfig.Interface) error
+	GetGravityClusterConfig(clusterName string) (clusterconfig.Interface, error)
+	UpdateGravityClusterConfig(clusterName string, config clusterconfig.Interface) error
 }

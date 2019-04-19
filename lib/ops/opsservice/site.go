@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/gravity/lib/pack"
 	"github.com/gravitational/gravity/lib/schema"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 	"github.com/gravitational/gravity/lib/users"
 	"github.com/gravitational/gravity/lib/utils"
 
@@ -55,7 +56,6 @@ type site struct {
 
 	domainName string
 	key        ops.SiteKey
-	provider   string
 	license    string
 
 	// app defines the installation configuration
@@ -64,6 +64,8 @@ type site struct {
 	// backendSite is the "storage" representation of the site
 	backendSite *storage.Site
 	seedConfig  ops.SeedConfig
+
+	clusterConfig clusterconfig.Interface
 
 	// static package assets
 	teleportPackage  loc.Locator
@@ -101,7 +103,7 @@ func newSite(site *site) (result *site, err error) {
 // cloudProviderName returns cloud provider name as understood
 // by kubernetes
 func (s *site) cloudProviderName() string {
-	switch s.provider {
+	switch s.provider() {
 	case schema.ProviderAWS, schema.ProvisionerAWSTerraform:
 		return schema.ProviderAWS
 	case schema.ProviderGCE:
@@ -549,8 +551,12 @@ func (s *site) render(data []byte, server map[string]interface{}, ctx *operation
 	return buf, nil
 }
 
+func (s *site) provider() string {
+	return s.clusterConfig.GetGlobalConfig().CloudProvider
+}
+
 func (s *site) getNetworkType(ctx *operationContext) string {
-	return s.app.Manifest.GetNetworkType(s.provider, ctx.operation.Provisioner)
+	return s.app.Manifest.GetNetworkType(s.provider(), ctx.operation.Provisioner)
 }
 
 func (s *site) renderString(data []byte, server map[string]interface{}, ctx *operationContext) (string, error) {
@@ -644,7 +650,7 @@ func (s site) gid() string {
 	return defaults.ServiceUserID
 }
 
-func convertSite(in storage.Site, apps appservice.Applications) (*ops.Site, error) {
+func convertSite(in storage.Site, apps appservice.Applications, backend storage.Backend) (*ops.Site, error) {
 	loc, err := loc.NewLocator(in.App.Repository, in.App.Name, in.App.Version)
 	if err != nil {
 		return nil, trace.Wrap(err)

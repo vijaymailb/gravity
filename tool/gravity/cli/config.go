@@ -96,8 +96,6 @@ type InstallConfig struct {
 	Manual bool
 	// AppPackage is the application package to install
 	AppPackage string
-	// ServiceUser is the service user configuration
-	ServiceUser systeminfo.User
 	// ServiceUID is the ID of the service user as configured externally
 	ServiceUID string
 	// ServiceGID is the ID of the service group as configured externally
@@ -110,6 +108,10 @@ type InstallConfig struct {
 	NodeTags []string
 	// NewProcess is used to launch gravity API server process
 	NewProcess process.NewGravityProcess
+	// serviceUser is the service user configuration
+	serviceUser systeminfo.User
+	// clusterConfig specifies additional configuration for the new cluster
+	clusterConfig clusterconfig.Resource
 }
 
 // NewInstallConfig creates install config from the passed CLI args and flags
@@ -201,7 +203,7 @@ func (i *InstallConfig) CheckAndSetDefaults() (err error) {
 	if err := i.validateDNSConfig(); err != nil {
 		return trace.Wrap(err)
 	}
-	i.ServiceUser = *serviceUser
+	i.serviceUser = *serviceUser
 	if i.NewProcess == nil {
 		i.NewProcess = process.NewProcess
 	}
@@ -346,7 +348,7 @@ func (i *InstallConfig) ToInstallerConfig(env *localenv.LocalEnvironment, valida
 		Docker:             i.Docker,
 		Insecure:           i.Insecure,
 		Manual:             i.Manual,
-		ServiceUser:        i.ServiceUser,
+		ServiceUser:        i.serviceUser,
 		NewProcess:         i.NewProcess,
 		LocalClusterClient: env.SiteOperator,
 		RuntimeResources:   kubernetesResources,
@@ -393,28 +395,29 @@ func (i *InstallConfig) updateClusterConfig(resources []storage.UnknownResource)
 		// Return the resources unchanged
 		return resources, nil
 	}
-	var config clusterconfig.Interface
+	var config *clusterconfig.Resource
 	if clusterConfig == nil {
-		config = clusterconfig.New(clusterconfig.Spec{
-			Global: &clusterconfig.Global{CloudProvider: i.CloudProvider},
+		var err error
+		config, err = clusterconfig.New(clusterconfig.Spec{
+			Global: clusterconfig.Global{
+				CloudProvider: i.CloudProvider,
+				ServiceCIDR:   i.ServiceCIDR,
+				PodCIDR:       i.PodCIDR,
+			},
 		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	} else {
 		config, err = clusterconfig.Unmarshal(clusterConfig.Raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if config := config.GetGlobalConfig(); config != nil {
-		if config.CloudProvider != "" {
-			i.CloudProvider = config.CloudProvider
-		}
+	if config.GetGlobalConfig().CloudProvider != "" {
+		i.CloudProvider = config.GetGlobalConfig().CloudProvider
 	}
-	// Serialize the cluster configuration and add to resources
-	configResource, err := clusterconfig.ToUnknown(config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	updated = append(updated, *configResource)
+	i.clusterConfig = *config
 	return updated, nil
 }
 

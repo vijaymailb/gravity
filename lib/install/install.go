@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/gravity/lib/state"
 	"github.com/gravitational/gravity/lib/status"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 	"github.com/gravitational/gravity/lib/systeminfo"
 	"github.com/gravitational/gravity/lib/utils"
 
@@ -167,9 +168,9 @@ type Config struct {
 	RuntimeResources []runtime.Object
 	// ClusterResources specifies optional cluster resources to create
 	// If specified, will be combined with Resources
-	// TODO(dmitri): externalize the ClusterConfiguration resource and create
-	// default provider-specific cloud-config on Gravity side
 	ClusterResources []storage.UnknownResource
+	// ClusterConfig defines additional cluster configuration
+	ClusterConfig clusterconfig.Resource
 	// EventsC is channel with events indicating install progress
 	EventsC chan Event
 	// SystemDevice is a device for gravity data

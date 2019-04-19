@@ -1090,10 +1090,6 @@ func (r *CreateSiteInstallOperationRequest) CheckAndSetDefaults() error {
 	if r.Provisioner == schema.ProvisionerAWSTerraform {
 		r.Variables.AWS.SetDefaults()
 	}
-	err := utils.ValidateKubernetesSubnets(r.Variables.OnPrem.PodCIDR, r.Variables.OnPrem.ServiceCIDR)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 
@@ -1398,8 +1394,6 @@ type NewSiteRequest struct {
 	AccountID string `json:"account_id"`
 	// Email is the email address of a user who created the site
 	Email string `json:"email"`
-	// Provider, e.g. 'aws_terraform' or 'onprem'
-	Provider string `json:"provider"`
 	// DomainName is a name that uniquely identifies the installation
 	DomainName string `json:"domain_name"`
 	// License is the license that will be installed on site
@@ -1424,6 +1418,8 @@ type NewSiteRequest struct {
 	DNSConfig storage.DNSConfig `json:"dns_config"`
 	// Docker specifies the cluster Docker configuration
 	Docker storage.DockerConfig `json:"docker"`
+	// ClusterConfig specifies the cluster configuration
+	ClusterConfig clusterconfig.Resource `json"cluster_config"`
 }
 
 // SiteKey is a key used to identify site

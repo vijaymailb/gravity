@@ -213,10 +213,6 @@ func (s *site) configureExpandPackages(ctx context.Context, opCtx *operationCont
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config, err := s.service.GetClusterConfiguration(s.key)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	planetConfig := planetConfig{
 		server:        *provisionedServer,
 		installExpand: opCtx.operation,
@@ -226,7 +222,7 @@ func (s *site) configureExpandPackages(ctx context.Context, opCtx *operationCont
 		configPackage: *configPackage,
 		manifest:      s.app.Manifest,
 		env:           env.GetKeyValues(),
-		config:        config,
+		config:        s.clusterConfig,
 	}
 	if provisionedServer.IsMaster() {
 		err := s.configureTeleportMaster(opCtx, provisionedServer)
@@ -236,7 +232,7 @@ func (s *site) configureExpandPackages(ctx context.Context, opCtx *operationCont
 		masterParams := planetMasterParams{
 			master:            provisionedServer,
 			secretsPackage:    secretsPackage,
-			serviceSubnetCIDR: opCtx.operation.InstallExpand.Subnets.Service,
+			serviceSubnetCIDR: s.clusterConfig.GetGlobalConfig().ServiceCIDR,
 		}
 		// if we have connection to an Ops Center set up, configure
 		// SNI host so it can dial in
@@ -325,10 +321,8 @@ func (s *site) configurePackages(ctx *operationContext, req ops.ConfigurePackage
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if s.cloudProviderName() != "" {
-			clusterConfig.SetCloudProvider(s.cloudProviderName())
-		}
 	}
+	clusterConfig.MergeFrom(s.clusterConfig)
 
 	for i, master := range masters {
 		secretsPackage, err := s.planetSecretsPackage(master)
@@ -349,7 +343,7 @@ func (s *site) configurePackages(ctx *operationContext, req ops.ConfigurePackage
 		err = s.configurePlanetMasterSecrets(ctx, planetMasterParams{
 			master:            master,
 			secretsPackage:    secretsPackage,
-			serviceSubnetCIDR: ctx.operation.InstallExpand.Subnets.Service,
+			serviceSubnetCIDR: s.clusterConfig.GetGlobalConfig().ServiceCIDR,
 			sniHost:           s.service.cfg.SNIHost,
 		})
 		if err != nil {
@@ -917,17 +911,13 @@ func (s *site) getPlanetConfig(config planetConfig) (args []string, err error) {
 		fmt.Sprintf("--volume=%v:%v", node.StateDir(), defaults.GravityDir),
 		fmt.Sprintf("--service-uid=%v", s.uid()),
 	}
-	overrideArgs := map[string]string{
-		"service-subnet": config.installExpand.InstallExpand.Subnets.Service,
-		"pod-subnet":     config.installExpand.InstallExpand.Subnets.Overlay,
-	}
 
 	for k, v := range config.env {
 		args = append(args, fmt.Sprintf("--env=%v=%v", k, v))
 	}
 
 	args = append(args, s.addCloudConfig(config.config)...)
-	args = append(args, s.addClusterConfig(config.config, overrideArgs)...)
+	args = append(args, s.addClusterConfig(config.config)...)
 
 	if node.IsMaster() {
 		args = append(args, "--role=master")
@@ -1027,10 +1017,6 @@ func (s *site) getPlanetConfig(config planetConfig) (args []string, err error) {
 		args = append(args, "--disable-flannel=true")
 	}
 
-	for k, v := range overrideArgs {
-		args = append(args, fmt.Sprintf("--%v=%v", k, v))
-	}
-
 	log.WithField("args", args).Info("Runtime configuration.")
 	return args, nil
 }
@@ -1073,7 +1059,7 @@ type planetConfig struct {
 	configPackage loc.Locator
 	// env specifies additional environment variables to pass to runtime container
 	env map[string]string
-	// config specifies optional cluster configuration
+	// config specifies cluster configuration
 	config clusterconfig.Interface
 }
 
@@ -1487,9 +1473,7 @@ func (s *site) addCloudConfig(config clusterconfig.Interface) (args []string) {
 	args = append(args, fmt.Sprintf("--cloud-provider=%v", s.cloudProviderName()))
 	var cloudConfig string
 	if config != nil {
-		if globalConfig := config.GetGlobalConfig(); globalConfig != nil {
-			cloudConfig = globalConfig.CloudConfig
-		}
+		cloudConfig = config.GetGlobalConfig().CloudConfig
 	}
 	if cloudConfig != "" {
 		args = append(args, fmt.Sprintf("--cloud-config=%v",
@@ -1500,7 +1484,7 @@ func (s *site) addCloudConfig(config clusterconfig.Interface) (args []string) {
 	return args
 }
 
-func (s *site) addClusterConfig(config clusterconfig.Interface, overrideArgs map[string]string) (args []string) {
+func (s *site) addClusterConfig(config clusterconfig.Interface) (args []string) {
 	if config == nil {
 		return nil
 	}
@@ -1511,14 +1495,15 @@ func (s *site) addClusterConfig(config clusterconfig.Interface, overrideArgs map
 	}
 
 	globalConfig := config.GetGlobalConfig()
-	if globalConfig == nil {
-		return args
-	}
 	if globalConfig.ServiceCIDR != "" {
-		overrideArgs["service-subnet"] = globalConfig.ServiceCIDR
+		args = append(args,
+			fmt.Sprintf("--service-subnet=%v", globalConfig.ServiceCIDR),
+		)
 	}
 	if globalConfig.PodCIDR != "" {
-		overrideArgs["pod-subnet"] = globalConfig.PodCIDR
+		args = append(args,
+			fmt.Sprintf("--pod-subnet=%v", globalConfig.PodCIDR),
+		)
 	}
 	if globalConfig.ServiceNodePortRange != "" {
 		args = append(args,

@@ -522,8 +522,8 @@ func (s *site) checkUpdateParameters(update *pack.PackageEnvelope, provisioner s
 	}
 
 	// we also do not support switching between network types
-	networkType := manifest.GetNetworkType(s.provider, provisioner)
-	updateNetworkType := updateManifest.GetNetworkType(s.provider, provisioner)
+	networkType := manifest.GetNetworkType(s.provider(), provisioner)
+	updateNetworkType := updateManifest.GetNetworkType(s.provider(), provisioner)
 	if networkType != updateNetworkType {
 		return trace.BadParameter("changing network type is not supported (current %q, new %q)",
 			networkType, updateNetworkType)

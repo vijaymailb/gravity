@@ -21,6 +21,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
+
 	"github.com/ghodss/yaml"
 	teleservices "github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
@@ -68,7 +70,7 @@ const (
 	// KindRuntimeEnvironment defines the resource that manages cluster environment variables
 	KindRuntimeEnvironment = "runtimeenvironment"
 	// KindClusterConfiguration defines the resource that manages cluster configuration
-	KindClusterConfiguration = "clusterconfiguration"
+	KindClusterConfiguration = clusterconfig.Kind
 )
 
 // CanonicalKind translates the specified kind to canonical form.

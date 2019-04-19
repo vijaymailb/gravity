@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/gravity/lib/pack"
 	"github.com/gravitational/gravity/lib/schema"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 	"github.com/gravitational/gravity/lib/systeminfo"
 	"github.com/gravitational/gravity/lib/users"
 	"github.com/gravitational/gravity/lib/utils"
@@ -1073,12 +1074,13 @@ func (m *Handler) createSite(w http.ResponseWriter, r *http.Request, p httproute
 		License:    input.License,
 		Labels:     input.Labels,
 	}
+	var clusterSpec clusterconfig.Spec
 
 	var vars storage.OperationVariables
 	provisioner := input.Provider.Provisioner
 	switch {
 	case input.Provider.AWS != nil:
-		req.Provider = schema.ProviderAWS
+		clusterSpec.Global.CloudProvider = schema.ProviderAWS
 		if provisioner == "" {
 			provisioner = schema.ProvisionerAWSTerraform
 		}
@@ -1089,15 +1091,15 @@ func (m *Handler) createSite(w http.ResponseWriter, r *http.Request, p httproute
 		vars.AWS.KeyPair = input.Provider.AWS.KeyPair
 		req.Location = input.Provider.AWS.Region
 	case input.Provider.GCE != nil:
-		req.Provider = schema.ProviderGCE
+		clusterSpec.Global.CloudProvider = schema.ProviderAWS
 		req.CloudConfig.GCENodeTags = input.Provider.GCE.NodeTags
 	case input.Provider.OnPrem != nil:
-		req.Provider = schema.ProviderOnPrem
+		clusterSpec.Global.CloudProvider = schema.ProviderOnPrem
 		if provisioner == "" {
 			provisioner = schema.ProvisionerOnPrem
 		}
-		vars.OnPrem.PodCIDR = input.Provider.OnPrem.PodCIDR
-		vars.OnPrem.ServiceCIDR = input.Provider.OnPrem.ServiceCIDR
+		clusterSpec.Global.ServiceCIDR = input.Provider.OnPrem.ServiceCIDR
+		clusterSpec.Global.PodCIDR = input.Provider.OnPrem.PodCIDR
 	default:
 		return nil, trace.BadParameter("provider unspecified in request")
 	}
@@ -1109,6 +1111,12 @@ func (m *Handler) createSite(w http.ResponseWriter, r *http.Request, p httproute
 			GID:  strconv.Itoa(m.cfg.ServiceUser.GID),
 		}
 	}
+	clusterConfig, err := clusterconfig.New(clusterSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.ClusterConfig = *clusterConfig
+
 	site, err := context.Operator.CreateSite(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1397,7 +1405,7 @@ func (m *Handler) uploadApp(w http.ResponseWriter, r *http.Request, p httprouter
 		return nil, trace.Wrap(err)
 	}
 
-	for _ = range progressC {
+	for range progressC {
 	}
 
 	if err = <-errorC; err != nil {

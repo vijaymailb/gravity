@@ -224,7 +224,8 @@ type configInitializer struct {
 }
 
 func validateCloudConfig(localEnv *localenv.LocalEnvironment, config libclusterconfig.Interface) error {
-	if newGlobalConfig := config.GetGlobalConfig(); !isCloudConfigEmpty(newGlobalConfig) {
+	newGlobalConfig := config.GetGlobalConfig()
+	if !isCloudConfigEmpty(newGlobalConfig) {
 		// TODO(dmitri): require cloud provider if cloud-config is being updated
 		// This is more a sanity check than a hard requirement so users are explicit about changes
 		// in the cloud configuration
@@ -246,26 +247,22 @@ func validateCloudConfig(localEnv *localenv.LocalEnvironment, config libclusterc
 	}
 	globalConfig := clusterConfig.GetGlobalConfig()
 	if isCloudConfigEmpty(globalConfig) {
-		if newGlobalConfig := config.GetGlobalConfig(); !isCloudConfigEmpty(newGlobalConfig) {
+		if !isCloudConfigEmpty(newGlobalConfig) {
 			return trace.BadParameter("cannot change cloud configuration: cluster does not have cloud provider configured")
 		}
 	}
-	if globalConfig != nil {
-		if newGlobalConfig := config.GetGlobalConfig(); newGlobalConfig != nil {
-			if newGlobalConfig.CloudProvider != "" && globalConfig.CloudProvider != newGlobalConfig.CloudProvider {
-				return trace.BadParameter("changing cloud provider is not supported (%q -> %q)",
-					newGlobalConfig.CloudProvider, globalConfig.CloudProvider)
-			}
-			if globalConfig.CloudProvider == "" && newGlobalConfig.CloudConfig != "" {
-				return trace.BadParameter("cannot set cloud configuration: cluster does not have cloud provider configured")
-			}
-		}
+	if newGlobalConfig.CloudProvider != "" && globalConfig.CloudProvider != newGlobalConfig.CloudProvider {
+		return trace.BadParameter("changing cloud provider is not supported (%q -> %q)",
+			newGlobalConfig.CloudProvider, globalConfig.CloudProvider)
+	}
+	if globalConfig.CloudProvider == "" && newGlobalConfig.CloudConfig != "" {
+		return trace.BadParameter("cannot set cloud configuration: cluster does not have cloud provider configured")
 	}
 	return nil
 }
 
-func isCloudConfigEmpty(global *libclusterconfig.Global) bool {
-	return global == nil || (global.CloudProvider == "" && global.CloudConfig == "")
+func isCloudConfigEmpty(global libclusterconfig.Global) bool {
+	return global.CloudProvider == "" && global.CloudConfig == ""
 }
 
 const (

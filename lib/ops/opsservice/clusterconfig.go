@@ -17,22 +17,12 @@ limitations under the License.
 package opsservice
 
 import (
-	"context"
-	"encoding/json"
-
-	"github.com/gravitational/gravity/lib/constants"
-	"github.com/gravitational/gravity/lib/defaults"
-	"github.com/gravitational/gravity/lib/kubernetes"
 	"github.com/gravitational/gravity/lib/ops"
 	"github.com/gravitational/gravity/lib/storage"
 	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 
-	"github.com/gravitational/rigging"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 // CreateUpdateConfigOperation creates a new operation to update cluster configuration
@@ -45,11 +35,15 @@ func (o *Operator) CreateUpdateConfigOperation(req ops.CreateUpdateConfigOperati
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	config, err := o.getClusterConfiguration()
+	config, err := o.backend().GetGravityClusterConfig(req.ClusterKey.SiteDomain)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := cluster.createUpdateConfigOperation(req, []byte(config))
+	configBytes, err := clusterconfig.Marshal(config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key, err := cluster.createUpdateConfigOperation(req, []byte(configBytes))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,86 +51,39 @@ func (o *Operator) CreateUpdateConfigOperation(req ops.CreateUpdateConfigOperati
 }
 
 // GetClusterConfiguration retrieves the cluster configuration
-func (o *Operator) GetClusterConfiguration(ops.SiteKey) (config clusterconfig.Interface, err error) {
-	spec, err := o.getClusterConfiguration()
+func (o *Operator) GetClusterConfiguration(key ops.SiteKey) (config clusterconfig.Interface, err error) {
+	err = key.Check()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(spec) != 0 {
-		config, err = clusterconfig.Unmarshal([]byte(spec))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		config = clusterconfig.NewEmpty()
-	}
-	return config, nil
-}
-
-func (o *Operator) getClusterConfiguration() (config string, err error) {
-	client, err := o.GetKubeClient()
+	config, err = o.backend().GetGravityClusterConfig(key.SiteDomain)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	configmap, err := client.CoreV1().ConfigMaps(defaults.KubeSystemNamespace).
-		Get(constants.ClusterConfigurationMap, metav1.GetOptions{})
-	err = rigging.ConvertError(err)
-	if err != nil && !trace.IsNotFound(err) {
-		return "", trace.Wrap(err)
-	}
-	config = configmap.Data["spec"]
 	return config, nil
 }
 
 // UpdateClusterConfiguration updates the cluster configuration to the value given
 // in the specified request
 func (o *Operator) UpdateClusterConfiguration(req ops.UpdateClusterConfigRequest) error {
-	client, err := o.GetKubeClient()
+	err := req.ClusterKey.Check()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	configmaps := client.CoreV1().ConfigMaps(defaults.KubeSystemNamespace)
-	configmap, err := getOrCreateClusterConfigMap(configmaps)
+	existingConfig, err := o.GetClusterConfiguration(req.ClusterKey)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var previousKeyValues []byte
-	if len(configmap.Data) != 0 {
-		var err error
-		previousKeyValues, err = json.Marshal(configmap.Data)
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal previous key/values")
-		}
-		if configmap.Annotations == nil {
-			configmap.Annotations = make(map[string]string)
-		}
-		configmap.Annotations[constants.PreviousKeyValuesAnnotationKey] = string(previousKeyValues)
-	}
-	configmap.Data = map[string]string{
-		"spec": string(req.Config),
-	}
-	err = kubernetes.Retry(context.TODO(), func() error {
-		_, err := configmaps.Update(configmap)
+	configUpdate, err := clusterconfig.Unmarshal(req.Config)
+	if err != nil {
 		return trace.Wrap(err)
-	})
-	return trace.Wrap(err)
-}
-
-// NewConfigurationConfigMap creates the backing ConfigMap to host cluster configuration
-func NewConfigurationConfigMap(config []byte) *v1.ConfigMap {
-	return &v1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       constants.KindConfigMap,
-			APIVersion: metav1.SchemeGroupVersion.Version,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      constants.ClusterConfigurationMap,
-			Namespace: defaults.KubeSystemNamespace,
-		},
-		Data: map[string]string{
-			"spec": string(config),
-		},
 	}
+	existingConfig.MergeFrom(configUpdate)
+	err = o.backend().UpdateGravityClusterConfig(req.ClusterKey.SiteDomain, existingConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // createUpdateConfigOperation creates a new operation to update cluster configuration
@@ -159,23 +106,4 @@ func (s *site) createUpdateConfigOperation(req ops.CreateUpdateConfigOperationRe
 		return nil, trace.Wrap(err)
 	}
 	return key, nil
-}
-
-func getOrCreateClusterConfigMap(client corev1.ConfigMapInterface) (configmap *v1.ConfigMap, err error) {
-	configmap, err = client.Get(constants.ClusterConfigurationMap, metav1.GetOptions{})
-	if err != nil {
-		if !trace.IsNotFound(rigging.ConvertError(err)) {
-			return nil, trace.Wrap(err)
-		}
-		err = rigging.ConvertError(err)
-	}
-	if err == nil {
-		return configmap, nil
-	}
-	configmap = NewConfigurationConfigMap(nil)
-	configmap, err = client.Create(configmap)
-	if err != nil {
-		return nil, trace.Wrap(rigging.ConvertError(err))
-	}
-	return configmap, nil
 }

@@ -147,7 +147,7 @@ func (s *site) getInstallInstructions(token storage.ProvisioningToken, serverPro
 		"service_group_env": constants.ServiceGroupEnvVar,
 		"gravity_bin_path":  defaults.GravityBin,
 		"gce_node_tags":     s.gceNodeTags(),
-		"cloud_provider":    s.provider,
+		"cloud_provider":    s.provider(),
 	}
 	var out bytes.Buffer
 	err = installTemplate.Execute(&out, vars)
@@ -182,7 +182,7 @@ func (s *site) getJoinInstructions(token storage.ProvisioningToken, serverProfil
 		"service_user_env":  constants.ServiceUserEnvVar,
 		"service_group_env": constants.ServiceGroupEnvVar,
 		"gravity_bin_path":  defaults.GravityBin,
-		"cloud_provider":    s.provider,
+		"cloud_provider":    s.provider(),
 		"operation_id":      token.OperationID,
 	}
 	var out bytes.Buffer

@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/gravity/lib/compare"
 	"github.com/gravitational/gravity/lib/constants"
 	"github.com/gravitational/gravity/lib/defaults"
-	"github.com/gravitational/gravity/lib/storage"
 
 	teleservices "github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
@@ -62,7 +61,7 @@ metadata:
   name: foo
 spec: {}`,
 			resource: &Resource{
-				Kind:    storage.KindClusterConfiguration,
+				Kind:    Kind,
 				Version: "v1",
 				Metadata: teleservices.Metadata{
 					Name:      constants.ClusterConfigurationMap,
@@ -83,14 +82,14 @@ spec:
       username=user
       password=pass`,
 			resource: &Resource{
-				Kind:    storage.KindClusterConfiguration,
+				Kind:    Kind,
 				Version: "v1",
 				Metadata: teleservices.Metadata{
 					Name:      constants.ClusterConfigurationMap,
 					Namespace: defaults.KubeSystemNamespace,
 				},
 				Spec: Spec{
-					Global: &Global{
+					Global: Global{
 						CloudProvider: "aws",
 						CloudConfig: `[Global]
 username=user
@@ -111,7 +110,7 @@ spec:
       apiVersion: kubelet.config.k8s.io/v1beta1
       address: "0.0.0.0"`,
 			resource: &Resource{
-				Kind:    storage.KindClusterConfiguration,
+				Kind:    Kind,
 				Version: "v1",
 				Metadata: teleservices.Metadata{
 					Name:      constants.ClusterConfigurationMap,
@@ -144,7 +143,7 @@ spec:
       apiVersion: kubelet.config.k8s.io/v1beta1
       address: 12`,
 			resource: &Resource{
-				Kind:    storage.KindClusterConfiguration,
+				Kind:    Kind,
 				Version: "v1",
 				Metadata: teleservices.Metadata{
 					Name:      constants.ClusterConfigurationMap,
@@ -170,14 +169,14 @@ spec:
       FeatureA: true
       FeatureB: false`,
 			resource: &Resource{
-				Kind:    storage.KindClusterConfiguration,
+				Kind:    Kind,
 				Version: "v1",
 				Metadata: teleservices.Metadata{
 					Name:      constants.ClusterConfigurationMap,
 					Namespace: defaults.KubeSystemNamespace,
 				},
 				Spec: Spec{
-					Global: &Global{
+					Global: Global{
 						FeatureGates: map[string]bool{
 							"FeatureA": true,
 							"FeatureB": false,

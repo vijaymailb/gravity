@@ -148,6 +148,20 @@ func ValidateRequirements(reqs Requirements, stateDir string) (failed []*pb.Prob
 	return probes.GetFailed(), nil
 }
 
+// ValidateCloudProvider validates that the specified provider is a valid known cloud provider
+func ValidateCloudProvider(provider string) error {
+	switch provider {
+	case ProviderOnPrem, ProviderGeneric, ProviderAWS, ProvisionerAWSTerraform, ProviderGCE:
+		return nil
+	default:
+		if provider == "" {
+			return trace.BadParameter("provider cannot be empty")
+		}
+		return trace.BadParameter(
+			"provider %q is not supported", provider)
+	}
+}
+
 // shouldCheckVolume determines if this volume should be checked
 func shouldCheckVolume(volume Volume) bool {
 	isDir, err := utils.IsDirectory(volume.Path)
