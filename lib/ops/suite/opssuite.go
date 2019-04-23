@@ -107,11 +107,13 @@ func (s *OpsSuite) SitesCRUD(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
+	clusterConfigBytes, err := clusterconfig.Marshal(clusterConfig)
+	c.Assert(err, IsNil)
 	site, err := s.O.CreateSite(ops.NewSiteRequest{
 		AppPackage:    s.testApp.String(),
 		AccountID:     a.ID,
 		DomainName:    "example.com",
-		ClusterConfig: *clusterConfig,
+		ClusterConfig: clusterConfigBytes,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(site.State, Equals, ops.SiteStateNotInstalled)
@@ -191,11 +193,13 @@ func (s *OpsSuite) InstallInstructions(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
+	clusterConfigBytes, err := clusterconfig.Marshal(clusterConfig)
+	c.Assert(err, IsNil)
 	site, err := s.O.CreateSite(ops.NewSiteRequest{
 		AppPackage:    s.testApp.String(),
 		AccountID:     a.ID,
 		DomainName:    "example.com",
-		ClusterConfig: *clusterConfig,
+		ClusterConfig: clusterConfigBytes,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(site.State, Equals, ops.SiteStateNotInstalled)

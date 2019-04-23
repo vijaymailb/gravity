@@ -56,10 +56,15 @@ func (o *Operator) GetClusterConfiguration(key ops.SiteKey) (config clusterconfi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	config, err = o.backend().GetGravityClusterConfig(key.SiteDomain)
+	config, err = o.backend().GetDefaultGravityClusterConfig(key.SiteDomain)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	updateConfig, err := o.backend().GetGravityClusterConfig(key.SiteDomain)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	config.MergeFrom(updateConfig)
 	return config, nil
 }
 
@@ -70,16 +75,11 @@ func (o *Operator) UpdateClusterConfiguration(req ops.UpdateClusterConfigRequest
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	existingConfig, err := o.GetClusterConfiguration(req.ClusterKey)
+	config, err := clusterconfig.Unmarshal(req.Config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	configUpdate, err := clusterconfig.Unmarshal(req.Config)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	existingConfig.MergeFrom(configUpdate)
-	err = o.backend().UpdateGravityClusterConfig(req.ClusterKey.SiteDomain, existingConfig)
+	err = o.backend().UpdateGravityClusterConfig(req.ClusterKey.SiteDomain, config)
 	if err != nil {
 		return trace.Wrap(err)
 	}

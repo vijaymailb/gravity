@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/gravity/lib/pack"
 	"github.com/gravitational/gravity/lib/schema"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 	"github.com/gravitational/gravity/lib/users"
 	"github.com/gravitational/gravity/lib/utils"
 
@@ -541,6 +542,11 @@ func (o *Operator) CreateSite(r ops.NewSiteRequest) (*ops.Site, error) {
 		labels[ops.SiteLabelName] = r.DomainName
 	}
 
+	clusterConfig, err := clusterconfig.Unmarshal(r.ClusterConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterData := &storage.Site{
 		AccountID: account.ID,
 		Domain:    r.DomainName,
@@ -549,7 +555,7 @@ func (o *Operator) CreateSite(r ops.NewSiteRequest) (*ops.Site, error) {
 		State:     ops.SiteStateNotInstalled,
 		// This is left for backwards compatibilty
 		// with the source of truth in cluster configuration
-		Provider:     r.ClusterConfig.GetGlobalConfig().CloudProvider,
+		Provider:     clusterConfig.GetGlobalConfig().CloudProvider,
 		License:      r.License,
 		Labels:       labels,
 		App:          app.PackageEnvelope.ToPackage(),
@@ -577,10 +583,21 @@ func (o *Operator) CreateSite(r ops.NewSiteRequest) (*ops.Site, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = b.CreateGravityClusterConfig(r.DomainName, &r.ClusterConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// FIXME: my knee-jerk feeling is to keep cluster configuration
+	// always available with a site instance but it poses complication
+	// during update when the cluster operator is used on a cluster that
+	// does not have the expected default/current cluster config structure
+	// in the state database.
+	// Temporary workaround is to create the cluster config on demand
+	// err = b.CreateDefaultGravityClusterConfig(r.DomainName, clusterConfig)
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
+
+	// err = b.CreateGravityClusterConfig(r.DomainName, clusterconfig.NewEmpty())
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
 
 	st, err := newSite(&site{
 		domainName: clusterData.Domain,
@@ -589,6 +606,7 @@ func (o *Operator) CreateSite(r ops.NewSiteRequest) (*ops.Site, error) {
 		appService: o.cfg.Apps,
 		app:        app,
 		seedConfig: o.cfg.SeedConfig,
+		// clusterConfig: clusterConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -640,7 +658,7 @@ func (o *Operator) CreateSite(r ops.NewSiteRequest) (*ops.Site, error) {
 		}
 	}
 
-	return convertSite(*clusterData, o.cfg.Apps, o.backend())
+	return convertSite(*clusterData, o.cfg.Apps)
 }
 
 // GetLocalUser returns local gravity site admin
@@ -689,7 +707,7 @@ func (o *Operator) GetLocalSite() (*ops.Site, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err := convertSite(*record, o.cfg.Apps, o.backend())
+	cluster, err := convertSite(*record, o.cfg.Apps)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1110,7 +1128,7 @@ func (o *Operator) GetSiteByDomain(domainName string) (*ops.Site, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return convertSite(*st, o.cfg.Apps, o.backend())
+	return convertSite(*st, o.cfg.Apps)
 }
 
 func (o *Operator) GetSite(key ops.SiteKey) (*ops.Site, error) {
@@ -1124,7 +1142,7 @@ func (o *Operator) GetSites(accountID string) ([]ops.Site, error) {
 	}
 	sites := make([]ops.Site, len(sts))
 	for i, st := range sts {
-		s, err := convertSite(st, o.cfg.Apps, o.backend())
+		s, err := convertSite(st, o.cfg.Apps)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1357,11 +1375,6 @@ func (o *Operator) openSiteInternal(data *storage.Site) (*site, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfig, err := o.backend().GetGravityClusterConfig(data.Domain)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	app, err := o.cfg.Apps.GetApp(*sitePackage)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -1373,15 +1386,15 @@ func (o *Operator) openSiteInternal(data *storage.Site) (*site, error) {
 	}
 
 	st, err := newSite(&site{
-		service:       o,
-		key:           ops.SiteKey{AccountID: data.AccountID, SiteDomain: data.Domain},
-		domainName:    data.Domain,
-		license:       data.License,
-		app:           app,
-		appService:    o.cfg.Apps,
-		seedConfig:    o.cfg.SeedConfig,
-		backendSite:   data,
-		clusterConfig: clusterConfig,
+		service:     o,
+		key:         ops.SiteKey{AccountID: data.AccountID, SiteDomain: data.Domain},
+		domainName:  data.Domain,
+		license:     data.License,
+		app:         app,
+		appService:  o.cfg.Apps,
+		seedConfig:  o.cfg.SeedConfig,
+		backendSite: data,
+		// clusterConfig: clusterConfig,
 	})
 
 	return st, trace.Wrap(err)

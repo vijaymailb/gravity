@@ -77,7 +77,8 @@ const (
 	dnsP                        = "dns"
 	chartsP                     = "charts"
 	indexP                      = "index"
-	gravityClusterConfigP       = "clusterconfig"
+	gravityClusterConfigP       = "config"
+	defaultP                    = "default"
 
 	// AllCollectionIDs identifies a collection without a specification (an ID)
 	AllCollectionIDs = "__all__"

@@ -124,6 +124,10 @@ func CreateCluster(operator Operator, clusterI storage.Cluster) (*SiteOperationK
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	clusterConfigBytes, err := clusterconfig.Marshal(clusterConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	req := NewSiteRequest{
 		DomainName:    cluster.Metadata.Name,
 		AppPackage:    appPackage.String(),
@@ -133,7 +137,7 @@ func CreateCluster(operator Operator, clusterI storage.Cluster) (*SiteOperationK
 		Labels:        cluster.Metadata.Labels,
 		Resources:     []byte(cluster.GetResources()),
 		License:       cluster.GetLicense(),
-		ClusterConfig: *clusterConfig,
+		ClusterConfig: clusterConfigBytes,
 	}
 	site, err := operator.CreateSite(req)
 	if err != nil {

@@ -1759,6 +1759,9 @@ type InstallExpandOperationState struct {
 	// Agents defines the list of agent attributes (like download instructions,
 	// etc.) to use on the client
 	Agents map[string]AgentProfile `json:"agents"`
+	// Subnets describes selected overlay/service network subnets for this
+	// operation
+	Subnets Subnets `json:"subnets"`
 	// Vars is a set of variables specific to this operation, e.g. AWS
 	// credentials or region
 	Vars OperationVariables `json:"vars"`
@@ -1830,6 +1833,10 @@ func (d DockerConfig) Check() error {
 
 // OnPremVariables is a set of operation variables specific to onprem provider
 type OnPremVariables struct {
+	// PodCIDR specifies the network range for pods
+	PodCIDR string `json:"pod_cidr"`
+	// ServiceCIDR specifies the network range for services
+	ServiceCIDR string `json:"service_cidr"`
 	// VxlanPort is the overlay network port
 	VxlanPort int `json:"vxlan_port"`
 }
@@ -2089,6 +2096,8 @@ type Charts interface {
 // GravityClusterConfiguration defines an interface to manage gravity-specific cluster configuration
 type GravityClusterConfiguration interface {
 	CreateGravityClusterConfig(clusterName string, config clusterconfig.Interface) error
+	CreateDefaultGravityClusterConfig(clusterName string, config clusterconfig.Interface) error
 	GetGravityClusterConfig(clusterName string) (clusterconfig.Interface, error)
+	GetDefaultGravityClusterConfig(clusterName string) (clusterconfig.Interface, error)
 	UpdateGravityClusterConfig(clusterName string, config clusterconfig.Interface) error
 }

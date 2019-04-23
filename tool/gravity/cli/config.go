@@ -22,6 +22,8 @@ import (
 	"net"
 	"os"
 
+	gcemeta "cloud.google.com/go/compute/metadata"
+	cloudaws "github.com/gravitational/gravity/lib/cloudprovider/aws"
 	"github.com/gravitational/gravity/lib/constants"
 	"github.com/gravitational/gravity/lib/defaults"
 	"github.com/gravitational/gravity/lib/expand"
@@ -32,6 +34,7 @@ import (
 	"github.com/gravitational/gravity/lib/process"
 	"github.com/gravitational/gravity/lib/rpc/proto"
 	rpcserver "github.com/gravitational/gravity/lib/rpc/server"
+	"github.com/gravitational/gravity/lib/schema"
 	"github.com/gravitational/gravity/lib/storage"
 	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 	"github.com/gravitational/gravity/lib/systeminfo"
@@ -110,8 +113,6 @@ type InstallConfig struct {
 	NewProcess process.NewGravityProcess
 	// serviceUser is the service user configuration
 	serviceUser systeminfo.User
-	// clusterConfig specifies additional configuration for the new cluster
-	clusterConfig clusterconfig.Resource
 }
 
 // NewInstallConfig creates install config from the passed CLI args and flags
@@ -311,7 +312,7 @@ func (i *InstallConfig) ToInstallerConfig(env *localenv.LocalEnvironment, valida
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gravityResources, err = i.updateClusterConfig(gravityResources)
+	gravityResources, clusterConfig, err := i.getClusterConfig(gravityResources)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -332,7 +333,6 @@ func (i *InstallConfig) ToInstallerConfig(env *localenv.LocalEnvironment, valida
 		UserLogFile:        i.UserLogFile,
 		SystemLogFile:      i.SystemLogFile,
 		Token:              i.InstallToken,
-		CloudProvider:      i.CloudProvider,
 		GCENodeTags:        i.NodeTags,
 		Flavor:             i.Flavor,
 		Role:               i.Role,
@@ -353,6 +353,7 @@ func (i *InstallConfig) ToInstallerConfig(env *localenv.LocalEnvironment, valida
 		LocalClusterClient: env.SiteOperator,
 		RuntimeResources:   kubernetesResources,
 		ClusterResources:   gravityResources,
+		ClusterConfig:      clusterConfig,
 	}, nil
 }
 
@@ -381,7 +382,11 @@ func (i *InstallConfig) splitResources(validator resources.Validator) (runtimeRe
 	return runtimeResources, clusterResources, nil
 }
 
-func (i *InstallConfig) updateClusterConfig(resources []storage.UnknownResource) (updated []storage.UnknownResource, err error) {
+func (i *InstallConfig) getClusterConfig(resources []storage.UnknownResource) (
+	updated []storage.UnknownResource,
+	config clusterconfig.Interface,
+	err error,
+) {
 	var clusterConfig *storage.UnknownResource
 	updated = resources[:0]
 	for _, res := range resources {
@@ -391,34 +396,16 @@ func (i *InstallConfig) updateClusterConfig(resources []storage.UnknownResource)
 		}
 		updated = append(updated, res)
 	}
-	if clusterConfig == nil && i.CloudProvider == "" {
-		// Return the resources unchanged
-		return resources, nil
-	}
-	var config *clusterconfig.Resource
 	if clusterConfig == nil {
-		var err error
-		config, err = clusterconfig.New(clusterconfig.Spec{
-			Global: clusterconfig.Global{
-				CloudProvider: i.CloudProvider,
-				ServiceCIDR:   i.ServiceCIDR,
-				PodCIDR:       i.PodCIDR,
-			},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		config = clusterconfig.NewEmpty()
 	} else {
 		config, err = clusterconfig.Unmarshal(clusterConfig.Raw)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 	}
-	if config.GetGlobalConfig().CloudProvider != "" {
-		i.CloudProvider = config.GetGlobalConfig().CloudProvider
-	}
-	i.clusterConfig = *config
-	return updated, nil
+	config.OverrideFromExternal(i.CloudProvider, i.ServiceCIDR, i.PodCIDR)
+	return updated, config, nil
 }
 
 func (i *InstallConfig) validateDNSConfig() error {
@@ -499,7 +486,7 @@ func NewJoinConfig(g *Application) JoinConfig {
 
 // CheckAndSetDefaults validates the configuration and sets default values
 func (j *JoinConfig) CheckAndSetDefaults() (err error) {
-	j.CloudProvider, err = install.ValidateCloudProvider(j.CloudProvider)
+	j.CloudProvider, err = validateCloudProvider(j.CloudProvider)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -594,4 +581,42 @@ func convertMounts(mounts map[string]string) (result []*proto.Mount) {
 		result = append(result, &proto.Mount{Name: name, Source: source})
 	}
 	return result
+}
+
+// validateCloudProvider validates the value of the specified cloud provider.
+// If no cloud provider has been specified, the provider is autodetected.
+func validateCloudProvider(cloudProvider string) (provider string, err error) {
+	switch cloudProvider {
+	case schema.ProviderAWS, schema.ProvisionerAWSTerraform:
+		if !cloudaws.IsRunningOnAWS() {
+			return "", trace.BadParameter("cloud provider %q was specified "+
+				"but the process does not appear to be running on an AWS "+
+				"instance", cloudProvider)
+		}
+		return schema.ProviderAWS, nil
+	case schema.ProviderGCE:
+		if !gcemeta.OnGCE() {
+			return "", trace.BadParameter("cloud provider %q was specified "+
+				"but the process does not appear to be running on a GCE "+
+				"instance", cloudProvider)
+		}
+		return schema.ProviderGCE, nil
+	case schema.ProviderGeneric, schema.ProvisionerOnPrem:
+		return schema.ProviderOnPrem, nil
+	case "":
+		// Detect cloud provider
+		if cloudaws.IsRunningOnAWS() {
+			log.Info("Detected AWS cloud provider.")
+			return schema.ProviderAWS, nil
+		}
+		if gcemeta.OnGCE() {
+			log.Info("Detected GCE cloud provider.")
+			return schema.ProviderGCE, nil
+		}
+		log.Info("Detected onprem installation.")
+		return schema.ProviderOnPrem, nil
+	default:
+		return "", trace.BadParameter("unsupported cloud provider %q, "+
+			"supported are: %v", cloudProvider, schema.SupportedProviders)
+	}
 }

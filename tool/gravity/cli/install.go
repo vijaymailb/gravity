@@ -324,7 +324,7 @@ func (r *agentConfig) checkAndSetDefaults() (err error) {
 	if r.packageAddr == "" {
 		return trace.BadParameter("package service address is required")
 	}
-	r.cloudProvider, err = install.ValidateCloudProvider(r.cloudProvider)
+	r.cloudProvider, err = validateCloudProvider(r.cloudProvider)
 	if err != nil {
 		return trace.Wrap(err)
 	}

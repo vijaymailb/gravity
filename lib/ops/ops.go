@@ -1419,7 +1419,7 @@ type NewSiteRequest struct {
 	// Docker specifies the cluster Docker configuration
 	Docker storage.DockerConfig `json:"docker"`
 	// ClusterConfig specifies the cluster configuration
-	ClusterConfig clusterconfig.Resource `json"cluster_config"`
+	ClusterConfig json.RawMessage `json:"cluster_config"`
 }
 
 // SiteKey is a key used to identify site

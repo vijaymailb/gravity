@@ -40,6 +40,9 @@ type Interface interface {
 	GetKubeletConfig() *Kubelet
 	// GetGlobalConfig returns the global configuration
 	GetGlobalConfig() Global
+	// OverrideFromExternal sets defaults from the specified set of parameters
+	// unless they have already been set
+	OverrideFromExternal(cloudProvider, serviceCIDR, podCIDR string)
 	// MergeFrom merges configuration from other
 	MergeFrom(other Interface)
 }
@@ -111,6 +114,19 @@ func (r *Resource) GetKubeletConfig() *Kubelet {
 // GetGlobalConfig returns the global configuration
 func (r *Resource) GetGlobalConfig() Global {
 	return r.Spec.Global
+}
+
+// OverrideFromExternal resets internal values from the specified set of parameters
+func (r *Resource) OverrideFromExternal(cloudProvider, serviceCIDR, podCIDR string) {
+	if cloudProvider != "" {
+		r.Spec.Global.CloudProvider = cloudProvider
+	}
+	if serviceCIDR != "" {
+		r.Spec.Global.ServiceCIDR = serviceCIDR
+	}
+	if podCIDR != "" {
+		r.Spec.Global.PodCIDR = podCIDR
+	}
 }
 
 // MergeFrom merges configuration from other

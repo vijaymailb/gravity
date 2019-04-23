@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/gravity/lib/fsm"
 	"github.com/gravitational/gravity/lib/ops"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/storage/clusterconfig"
 
 	teleservices "github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
@@ -169,7 +170,31 @@ func copySite(site *storage.Site, dst storage.Backend, src ExportBackend, cluste
 		}
 	}
 
-	return trace.Wrap(err)
+	if err := copyClusterConfig(site, dst, src); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func copyClusterConfig(cluster *storage.Site, dst storage.Backend, src ExportBackend) error {
+	defaultConfig, err := src.GetDefaultGravityClusterConfig(cluster.Domain)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterConfig, err := src.GetGravityClusterConfig(cluster.Domain)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = dst.CreateDefaultGravityClusterConfig(cluster.Domain, defaultConfig)
+	if err != nil && !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err)
+	}
+	err = dst.CreateGravityClusterConfig(cluster.Domain, clusterConfig)
+	if err != nil && !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // ExportBackend exposes a subset of storage.Backend to perform site export.
@@ -187,4 +212,6 @@ type ExportBackend interface {
 	GetSiteProvisioningTokens(domain string) ([]storage.ProvisioningToken, error)
 	GetLastProgressEntry(domain, operationID string) (*storage.ProgressEntry, error)
 	GetOperationPlan(domain, operationID string) (*storage.OperationPlan, error)
+	GetGravityClusterConfig(domain string) (clusterconfig.Interface, error)
+	GetDefaultGravityClusterConfig(domain string) (clusterconfig.Interface, error)
 }

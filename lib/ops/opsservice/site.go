@@ -65,7 +65,7 @@ type site struct {
 	backendSite *storage.Site
 	seedConfig  ops.SeedConfig
 
-	clusterConfig clusterconfig.Interface
+	// clusterConfig clusterconfig.Interface
 
 	// static package assets
 	teleportPackage  loc.Locator
@@ -551,8 +551,24 @@ func (s *site) render(data []byte, server map[string]interface{}, ctx *operation
 	return buf, nil
 }
 
+// FIXME: see comment in site.go, cluster configuration should
+// statically available to an instance of site.
+// Leaving this as a workaround
+func (s *site) clusterConfig() (clusterconfig.Interface, error) {
+	defaultConfig, err := s.backend().GetDefaultGravityClusterConfig(s.domainName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusterConfig, err := s.backend().GetGravityClusterConfig(s.domainName)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	clusterConfig.MergeFrom(defaultConfig)
+	return clusterConfig, nil
+}
+
 func (s *site) provider() string {
-	return s.clusterConfig.GetGlobalConfig().CloudProvider
+	return s.backendSite.Provider
 }
 
 func (s *site) getNetworkType(ctx *operationContext) string {
@@ -650,7 +666,7 @@ func (s site) gid() string {
 	return defaults.ServiceUserID
 }
 
-func convertSite(in storage.Site, apps appservice.Applications, backend storage.Backend) (*ops.Site, error) {
+func convertSite(in storage.Site, apps appservice.Applications) (*ops.Site, error) {
 	loc, err := loc.NewLocator(in.App.Repository, in.App.Name, in.App.Version)
 	if err != nil {
 		return nil, trace.Wrap(err)

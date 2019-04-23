@@ -213,6 +213,10 @@ func (s *site) configureExpandPackages(ctx context.Context, opCtx *operationCont
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clusterConfig, err := s.clusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	planetConfig := planetConfig{
 		server:        *provisionedServer,
 		installExpand: opCtx.operation,
@@ -222,7 +226,7 @@ func (s *site) configureExpandPackages(ctx context.Context, opCtx *operationCont
 		configPackage: *configPackage,
 		manifest:      s.app.Manifest,
 		env:           env.GetKeyValues(),
-		config:        s.clusterConfig,
+		config:        clusterConfig,
 	}
 	if provisionedServer.IsMaster() {
 		err := s.configureTeleportMaster(opCtx, provisionedServer)
@@ -232,7 +236,7 @@ func (s *site) configureExpandPackages(ctx context.Context, opCtx *operationCont
 		masterParams := planetMasterParams{
 			master:            provisionedServer,
 			secretsPackage:    secretsPackage,
-			serviceSubnetCIDR: s.clusterConfig.GetGlobalConfig().ServiceCIDR,
+			serviceSubnetCIDR: clusterConfig.GetGlobalConfig().ServiceCIDR,
 		}
 		// if we have connection to an Ops Center set up, configure
 		// SNI host so it can dial in
@@ -315,14 +319,18 @@ func (s *site) configurePackages(ctx *operationContext, req ops.ConfigurePackage
 
 	etcdConfig := s.prepareEtcdConfig(ctx)
 
-	var clusterConfig clusterconfig.Interface
+	clusterConfig, err := s.clusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	config := clusterConfig
 	if len(req.Config) != 0 {
-		clusterConfig, err = clusterconfig.Unmarshal(req.Config)
+		config, err = clusterconfig.Unmarshal(req.Config)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		config.MergeFrom(clusterConfig)
 	}
-	clusterConfig.MergeFrom(s.clusterConfig)
 
 	for i, master := range masters {
 		secretsPackage, err := s.planetSecretsPackage(master)
@@ -343,7 +351,7 @@ func (s *site) configurePackages(ctx *operationContext, req ops.ConfigurePackage
 		err = s.configurePlanetMasterSecrets(ctx, planetMasterParams{
 			master:            master,
 			secretsPackage:    secretsPackage,
-			serviceSubnetCIDR: s.clusterConfig.GetGlobalConfig().ServiceCIDR,
+			serviceSubnetCIDR: config.GetGlobalConfig().ServiceCIDR,
 			sniHost:           s.service.cfg.SNIHost,
 		})
 		if err != nil {
@@ -1636,4 +1644,10 @@ func (r *exportBackend) GetLastProgressEntry(domain, operationID string) (*stora
 }
 func (r *exportBackend) GetOperationPlan(domain, operationID string) (*storage.OperationPlan, error) {
 	return r.site.backend().GetOperationPlan(domain, operationID)
+}
+func (r *exportBackend) GetGravityClusterConfig(domain string) (clusterconfig.Interface, error) {
+	return r.site.backend().GetGravityClusterConfig(domain)
+}
+func (r *exportBackend) GetDefaultGravityClusterConfig(domain string) (clusterconfig.Interface, error) {
+	return r.site.backend().GetDefaultGravityClusterConfig(domain)
 }

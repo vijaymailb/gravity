@@ -35,10 +35,14 @@ func (s *site) rotateSecrets(ctx *operationContext, secretsPackage loc.Locator, 
 		return resp, nil
 	}
 
+	clusterConfig, err := s.clusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	masterParams := planetMasterParams{
 		master:            node,
 		secretsPackage:    &secretsPackage,
-		serviceSubnetCIDR: s.clusterConfig.GetGlobalConfig().ServiceCIDR,
+		serviceSubnetCIDR: clusterConfig.GetGlobalConfig().ServiceCIDR,
 	}
 	// if we have a connection to Ops Center set up, configure
 	// SNI host so Ops Center can dial in

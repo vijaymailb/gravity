@@ -1115,7 +1115,11 @@ func (m *Handler) createSite(w http.ResponseWriter, r *http.Request, p httproute
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.ClusterConfig = *clusterConfig
+	clusterConfigBytes, err := clusterconfig.Marshal(clusterConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.ClusterConfig = clusterConfigBytes
 
 	site, err := context.Operator.CreateSite(req)
 	if err != nil {

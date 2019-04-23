@@ -165,7 +165,7 @@ func (b *backend) SetClusterImported() error {
 }
 
 func (b *backend) CreateGravityClusterConfig(clusterName string, config clusterconfig.Interface) error {
-	err := b.createVal(b.key(sitesP, clusterName, gravityClusterConfigP), config, forever)
+	err := b.createVal(b.key(sitesP, clusterName, gravityClusterConfigP, valP), config, forever)
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "cluster configuration for %v already exists", clusterName)
@@ -175,9 +175,20 @@ func (b *backend) CreateGravityClusterConfig(clusterName string, config clusterc
 	return nil
 }
 
+func (b *backend) CreateDefaultGravityClusterConfig(clusterName string, config clusterconfig.Interface) error {
+	err := b.createVal(b.key(sitesP, clusterName, gravityClusterConfigP, defaultP), config, forever)
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.Wrap(err, "default cluster configuration for %v already exists", clusterName)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func (b *backend) GetGravityClusterConfig(clusterName string) (clusterconfig.Interface, error) {
 	var config clusterconfig.Resource
-	if err := b.getVal(b.key(sitesP, clusterName, gravityClusterConfigP), &config); err != nil {
+	if err := b.getVal(b.key(sitesP, clusterName, gravityClusterConfigP, valP), &config); err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("cluster configuration for %v not found", clusterName)
 		}
@@ -186,8 +197,19 @@ func (b *backend) GetGravityClusterConfig(clusterName string) (clusterconfig.Int
 	return &config, nil
 }
 
+func (b *backend) GetDefaultGravityClusterConfig(clusterName string) (clusterconfig.Interface, error) {
+	var config clusterconfig.Resource
+	if err := b.getVal(b.key(sitesP, clusterName, gravityClusterConfigP, defaultP), &config); err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("default cluster configuration for %v not found", clusterName)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return &config, nil
+}
+
 func (b *backend) UpdateGravityClusterConfig(clusterName string, config clusterconfig.Interface) error {
-	err := b.updateVal(b.key(sitesP, clusterName, gravityClusterConfigP), config, forever)
+	err := b.updateVal(b.key(sitesP, clusterName, gravityClusterConfigP, valP), config, forever)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.Wrap(err, "cluster configuration for %v not found", clusterName)

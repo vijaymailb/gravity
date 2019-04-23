@@ -18,6 +18,7 @@ package phases
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -180,7 +181,10 @@ func (p *updatePhaseInit) Execute(context.Context) error {
 		return trace.Wrap(err, "failed to update DNS configuration")
 	}
 	if err := p.updateDockerConfig(); err != nil {
-		return trace.Wrap(err, "failed to update Docker configuration")
+		return trace.Wrap(err, "failed to update docker configuration")
+	}
+	if err := p.updateClusterConfig(); err != nil {
+		return trace.Wrap(err, "failed to update cluster configuration")
 	}
 	for _, server := range p.Servers {
 		if err := p.rotateSecrets(server); err != nil {
@@ -264,6 +268,51 @@ func (p *updatePhaseInit) updateClusterDNSConfig() error {
 	}
 
 	_, err = p.Backend.UpdateSite(*cluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (p *updatePhaseInit) updateClusterConfig() error {
+	p.Info("Update cluster configuration.")
+	cluster, err := p.Operator.GetLocalSite()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterConfig, err := p.Backend.GetDefaultGravityClusterConfig(cluster.Domain)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if clusterConfig != nil {
+		return nil
+	}
+	existingClusterConfig, err := p.Operator.GetClusterConfiguration(cluster.Key())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// FIXME: remove logging
+	p.WithField("config", fmt.Sprintf("%#v", existingClusterConfig)).Info("Existing cluster configuration.")
+	installOperation, _, err := ops.GetInstallOperation(cluster.Key(), p.Operator)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clusterConfig, err = clusterconfig.New(clusterconfig.Spec{
+		Global: clusterconfig.Global{
+			CloudProvider: cluster.Provider,
+			ServiceCIDR:   installOperation.InstallExpand.Subnets.Service,
+			PodCIDR:       installOperation.InstallExpand.Subnets.Overlay,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.WithField("config", fmt.Sprintf("%#v", clusterConfig)).Info("New default cluster configuration.")
+	err = p.Backend.CreateDefaultGravityClusterConfig(cluster.Domain, clusterConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = p.Backend.CreateGravityClusterConfig(cluster.Domain, existingClusterConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -30,7 +30,6 @@ import (
 
 	"github.com/fatih/color"
 	appservice "github.com/gravitational/gravity/lib/app"
-	cloudaws "github.com/gravitational/gravity/lib/cloudprovider/aws"
 	cloudgce "github.com/gravitational/gravity/lib/cloudprovider/gce"
 	"github.com/gravitational/gravity/lib/constants"
 	"github.com/gravitational/gravity/lib/defaults"
@@ -54,7 +53,6 @@ import (
 	"github.com/gravitational/gravity/lib/systeminfo"
 	"github.com/gravitational/gravity/lib/utils"
 
-	gcemeta "cloud.google.com/go/compute/metadata"
 	"github.com/docker/docker/pkg/namesgenerator"
 	teleutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -145,8 +143,6 @@ type Config struct {
 	AdvertiseAddr string
 	// Token is install token
 	Token string
-	// CloudProvider is optional cloud provider
-	CloudProvider string
 	// StateDir is directory with local installer state
 	StateDir string
 	// WriteStateDir is installer write layer
@@ -170,7 +166,9 @@ type Config struct {
 	// If specified, will be combined with Resources
 	ClusterResources []storage.UnknownResource
 	// ClusterConfig defines additional cluster configuration
-	ClusterConfig clusterconfig.Resource
+	ClusterConfig clusterconfig.Interface
+	// ClusterConfigBytes specifies the ClusterConfig as JSON-encoded payload
+	ClusterConfigBytes []byte
 	// EventsC is channel with events indicating install progress
 	EventsC chan Event
 	// SystemDevice is a device for gravity data
@@ -241,10 +239,6 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 	if err := c.Docker.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	c.CloudProvider, err = ValidateCloudProvider(c.CloudProvider)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	if c.Process == nil {
 		return trace.BadParameter("missing Process")
 	}
@@ -273,6 +267,10 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 	if err := c.validateCloudConfig(); err != nil {
 		return trace.Wrap(err)
 	}
+	c.ClusterConfigBytes, err = clusterconfig.Marshal(c.ClusterConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if c.NewProcess == nil {
 		c.NewProcess = process.NewProcess
 	}
@@ -283,7 +281,7 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 }
 
 func (c *Config) validateCloudConfig() error {
-	if c.CloudProvider != schema.ProviderGCE {
+	if c.ClusterConfig.GetGlobalConfig().CloudProvider != schema.ProviderGCE {
 		return nil
 	}
 	// TODO(dmitri): skip validations if user provided custom cloud configuration
@@ -692,44 +690,6 @@ func EnsureServiceUserAndBinary(userID, groupID string) (*systeminfo.User, error
 	}
 
 	return user, nil
-}
-
-// ValidateCloudProvider validates the value of the specified cloud provider.
-// If no cloud provider has been specified, the provider is autodetected.
-func ValidateCloudProvider(cloudProvider string) (provider string, err error) {
-	switch cloudProvider {
-	case schema.ProviderAWS, schema.ProvisionerAWSTerraform:
-		if !cloudaws.IsRunningOnAWS() {
-			return "", trace.BadParameter("cloud provider %q was specified "+
-				"but the process does not appear to be running on an AWS "+
-				"instance", cloudProvider)
-		}
-		return schema.ProviderAWS, nil
-	case schema.ProviderGCE:
-		if !gcemeta.OnGCE() {
-			return "", trace.BadParameter("cloud provider %q was specified "+
-				"but the process does not appear to be running on a GCE "+
-				"instance", cloudProvider)
-		}
-		return schema.ProviderGCE, nil
-	case ops.ProviderGeneric, schema.ProvisionerOnPrem:
-		return schema.ProviderOnPrem, nil
-	case "":
-		// Detect cloud provider
-		if cloudaws.IsRunningOnAWS() {
-			log.Info("Detected AWS cloud provider.")
-			return schema.ProviderAWS, nil
-		}
-		if gcemeta.OnGCE() {
-			log.Info("Detected GCE cloud provider.")
-			return schema.ProviderGCE, nil
-		}
-		log.Info("Detected onprem installation.")
-		return schema.ProviderOnPrem, nil
-	default:
-		return "", trace.BadParameter("unsupported cloud provider %q, "+
-			"supported are: %v", cloudProvider, schema.SupportedProviders)
-	}
 }
 
 // FetchCloudMetadata fetches the metadata for the specified cloud provider

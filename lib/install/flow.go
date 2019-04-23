@@ -122,7 +122,7 @@ func (i *Installer) NewClusterRequest() ops.NewSiteRequest {
 		DNSOverrides:  i.DNSOverrides,
 		DNSConfig:     i.DNSConfig,
 		Docker:        i.Docker,
-		ClusterConfig: i.Config.ClusterConfig,
+		ClusterConfig: i.Config.ClusterConfigBytes,
 	}
 }
 
@@ -226,7 +226,7 @@ func (i *Installer) StartAgent(agentURL string) (rpcserver.Server, error) {
 		Role:         i.Role,
 		Mounts:       mounts,
 	}
-	if err = FetchCloudMetadata(i.CloudProvider, &runtimeConfig); err != nil {
+	if err = FetchCloudMetadata(i.ClusterConfig.GetGlobalConfig().CloudProvider, &runtimeConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
