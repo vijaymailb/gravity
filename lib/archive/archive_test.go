@@ -262,34 +262,14 @@ func TestSanitizeTarPath(t *testing.T) {
 			},
 			expectError: false,
 		},
-		// Linkname path is within destination directory
+		// Linkname is set
+		// Note: Links of any type are not currently supported, due to difficulties in ensuring link resolution is correct
 		{
 			header: &tar.Header{
 				Name:     "test5.txt",
 				Linkname: "test5.txt",
 			},
-			expectError: false,
-		},
-		{
-			header: &tar.Header{
-				Name:     "test6.txt",
-				Linkname: "./dir/test6.txt",
-			},
-			expectError: false,
-		},
-		{
-			header: &tar.Header{
-				Name:     "test7.txt",
-				Linkname: "./dir/../dir2/test7.txt",
-			},
-			expectError: false,
-		},
-		{
-			header: &tar.Header{
-				Name:     "dir1/test8.txt",
-				Linkname: "dir1/../dir2/test8.txt",
-			},
-			expectError: false,
+			expectError: true,
 		},
 		// Name will be outside destination directory
 		{
@@ -303,45 +283,6 @@ func TestSanitizeTarPath(t *testing.T) {
 				Name: "./test/../../test10.txt",
 			},
 			expectError: true,
-		},
-		// Linkname points outside destination directory
-		{
-			header: &tar.Header{
-				Name:     "test11.txt",
-				Linkname: "../test11.txt",
-			},
-			expectError: true,
-		},
-		{
-			header: &tar.Header{
-				Name:     "test12.txt",
-				Linkname: "./test/../../test12.txt",
-			},
-			expectError: true,
-		},
-		// Relative link that remains inside the directory
-		{
-			header: &tar.Header{
-				Name:     "/test/dir/test13.txt",
-				Linkname: "../../test2/dir2/test14.txt",
-			},
-			expectError: false,
-		},
-		// Linkname is absolute path outside extraction directory
-		{
-			header: &tar.Header{
-				Name:     "test14.txt",
-				Linkname: "/test14.txt",
-			},
-			expectError: true,
-		},
-		// Linkname is absolute path inside extraction directory
-		{
-			header: &tar.Header{
-				Name:     "test15.txt",
-				Linkname: "/tmp/test15.txt",
-			},
-			expectError: false,
 		},
 	}
 
