@@ -1,0 +1,9 @@
+# TODO(dmitri): restrict to only major.minor for any given release?
+policy_module(gravity, 6.1.0)
+
+# Types
+type gravity_t;
+type gravity_exec_t;
+# FIXME
+init_daemon_domain(gravity_t, gravity_exec_t)
+
