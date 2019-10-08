@@ -1,9 +1,50 @@
-# TODO(dmitri): restrict to only major.minor for any given release?
-policy_module(gravity, 6.1.0)
+policy_module(gravity, 5.5.0)
 
-# Types
+########################################
+#
+# Declarations
+#
+
 type gravity_t;
 type gravity_exec_t;
-# FIXME
 init_daemon_domain(gravity_t, gravity_exec_t)
 
+# TODO: remove once the policy has been tested and proven to work
+permissive gravity_t;
+
+type gravity_state_t;
+files_type(gravity_state_t)
+
+# gravity log files
+type gravity_log_t;
+logging_log_file(gravity_log_t)
+allow gravity_t gravity_log_t:file { create_file_perms append_file_perms };
+logging_log_filetrans(gravity_t, gravity_log_t, file)
+
+########################################
+#
+# gravity local policy
+#
+allow gravity_t self:fifo_file rw_fifo_file_perms;
+allow gravity_t self:unix_stream_socket create_stream_socket_perms;
+
+manage_dirs_pattern(gravity_t, gravity_state_t, gravity_state_t)
+manage_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
+manage_lnk_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
+files_var_lib_filetrans(gravity_t, gravity_state_t, { dir file lnk_file })
+
+domain_use_interactive_fds(gravity_t)
+
+files_read_etc_files(gravity_t)
+
+auth_use_nsswitch(gravity_t)
+
+miscfiles_read_localization(gravity_t)
+
+sysnet_dns_name_resolve(gravity_t)
+
+# FIXME: transition from unconfined user
+gen_require(`
+	type unconfined_t;
+')
+type_transition unconfined_t gravity_exec_t:process gravity_t;

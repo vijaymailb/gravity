@@ -1,9 +1,7 @@
-
 # TODO(dmitri): how to specify that unit files are arbitrary location if at all?
-gravity-installer.service	--	gen_context(system_u:object_r:gravity_unit_file_t,s0)
-gravity-agent.service	--	gen_context(system_u:object_r:gravity_unit_file_t,s0)
+#gravity-installer.service	--	gen_context(system_u:object_r:gravity_unit_file_t,s0)
+#gravity-agent.service	--	gen_context(system_u:object_r:gravity_unit_file_t,s0)
 
-/usr/bin/gravity 	--	gen_context(system_u:object_r:gravity_exec_t,s0)
-/var/lib/gravity(/.*)?		gen_context(system_u:object_r:gravity_var_lib_t,s0)
-/var/log/gravity-(/.*)?		gen_context(system_u:object_r:gravity_var_log_t,s0)
-/var/log/telekube-(/.*)?	gen_context(system_u:object_r:gravity_var_log_t,s0)
+/usr/bin/gravity		--	gen_context(system_u:object_r:gravity_exec_t,s0)
+
+/var/lib/gravity(/.*)?		gen_context(system_u:object_r:gravity_state_t,s0)
