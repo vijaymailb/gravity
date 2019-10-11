@@ -1,5 +1,11 @@
 policy_module(gravity, 5.5.0)
 
+require {
+	type unconfined_t;
+	role unconfined_r;
+	class process transition;
+}
+
 ########################################
 #
 # Declarations
@@ -18,8 +24,6 @@ files_type(gravity_state_t)
 # gravity log files
 type gravity_log_t;
 logging_log_file(gravity_log_t)
-allow gravity_t gravity_log_t:file { create_file_perms append_file_perms };
-logging_log_filetrans(gravity_t, gravity_log_t, file)
 
 ########################################
 #
@@ -27,6 +31,12 @@ logging_log_filetrans(gravity_t, gravity_log_t, file)
 #
 allow gravity_t self:fifo_file rw_fifo_file_perms;
 allow gravity_t self:unix_stream_socket create_stream_socket_perms;
+
+manage_dirs_pattern(gravity_t, gravity_log_t, gravity_log_t)
+append_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+create_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+setattr_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+logging_log_filetrans(gravity_t, gravity_log_t, {dir, file})
 
 manage_dirs_pattern(gravity_t, gravity_state_t, gravity_state_t)
 manage_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
@@ -43,8 +53,10 @@ miscfiles_read_localization(gravity_t)
 
 sysnet_dns_name_resolve(gravity_t)
 
-# FIXME: transition from unconfined user
-gen_require(`
-	type unconfined_t;
-')
-type_transition unconfined_t gravity_exec_t:process gravity_t;
+domain_auto_trans(unconfined_t, gravity_exec_t, gravity_t)
+# Enable unconfined_r role access to gravity_t domain
+role unconfined_r types gravity_t;
+# FIXME(dmitri): figure out whether this is really necessary
+#allow unconfined_t gravity_exec_t:file { ioctl read getattr map execute execute_no_trans open entrypoint };
+#allow unconfined_t gravity_exec_t:file { entrypoint };
+#allow unconfined_t gravity_exec_t:process { transition };

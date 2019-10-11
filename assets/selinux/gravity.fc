@@ -3,5 +3,5 @@
 #gravity-agent.service	--	gen_context(system_u:object_r:gravity_unit_file_t,s0)
 
 /usr/bin/gravity		--	gen_context(system_u:object_r:gravity_exec_t,s0)
-
 /var/lib/gravity(/.*)?		gen_context(system_u:object_r:gravity_state_t,s0)
+/var/log/gravity-(install|system)\.log	--	gen_context(system_u:object_r:gravity_state_t,s0)
