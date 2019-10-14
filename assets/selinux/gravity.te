@@ -1,62 +1,120 @@
 policy_module(gravity, 5.5.0)
 
-require {
-	type unconfined_t;
-	role unconfined_r;
-	class process transition;
-}
-
-########################################
-#
-# Declarations
-#
+attribute_role gravity_roles;
+attribute gravity_port_type;
 
 type gravity_t;
 type gravity_exec_t;
 init_daemon_domain(gravity_t, gravity_exec_t)
+role gravity_roles types gravity_t;
 
 # TODO: remove once the policy has been tested and proven to work
-permissive gravity_t;
+#permissive gravity_t;
 
 type gravity_state_t;
 files_type(gravity_state_t)
-
-# gravity log files
-type gravity_log_t;
-logging_log_file(gravity_log_t)
-
-########################################
-#
-# gravity local policy
-#
-allow gravity_t self:fifo_file rw_fifo_file_perms;
-allow gravity_t self:unix_stream_socket create_stream_socket_perms;
-
-manage_dirs_pattern(gravity_t, gravity_log_t, gravity_log_t)
-append_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
-create_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
-setattr_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
-logging_log_filetrans(gravity_t, gravity_log_t, {dir, file})
-
+ubac_constrained(gravity_state_t)
 manage_dirs_pattern(gravity_t, gravity_state_t, gravity_state_t)
 manage_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
 manage_lnk_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
 files_var_lib_filetrans(gravity_t, gravity_state_t, { dir file lnk_file })
 
-domain_use_interactive_fds(gravity_t)
+# gravity log files
+type gravity_log_t;
+logging_log_file(gravity_log_t)
+manage_dirs_pattern(gravity_t, gravity_log_t, gravity_log_t)
+append_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+create_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+setattr_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+logging_log_filetrans(gravity_t, gravity_log_t, {dir file})
 
+type gravity_tmp_t;
+files_tmp_file(gravity_tmp_t)
+manage_dirs_pattern(gravity_t, gravity_tmp_t, gravity_tmp_t)
+manage_files_pattern(gravity_t, gravity_tmp_t, gravity_tmp_t)
+manage_sock_files_pattern(gravity_t, gravity_tmp_t, gravity_tmp_t)
+manage_lnk_files_pattern(gravity_t, gravity_tmp_t, gravity_tmp_t)
+files_tmp_filetrans(gravity_t, gravity_tmp_t, { file dir lnk_file sock_file })
+userdom_user_tmp_filetrans(gravity_t, gravity_tmp_t, dir)
+
+type gravity_tmpfs_t;
+# FIXME: enable when necessary
+# manage_files_pattern(gravity_t, gravity_tmpfs_t, gravity_tmpfs_t)
+# manage_fifo_files_pattern(gravity_t, gravity_tmpfs_t, gravity_tmpfs_t)
+# manage_lnk_files_pattern(gravity_t, gravity_tmpfs_t, gravity_tmpfs_t)
+# manage_sock_files_pattern(gravity_t, gravity_tmpfs_t, gravity_tmpfs_t)
+# fs_tmpfs_filetrans(gravity_t, gravity_tmpfs_t, {file fifo_file lnk_file sock_file})
+
+# installer directory
+type gravity_installer_t;
+files_type(gravity_installer_t)
+manage_dirs_pattern(gravity_t, gravity_installer_t, gravity_installer_t)
+manage_files_pattern(gravity_t, gravity_installer_t, gravity_installer_t)
+read_files_pattern(gravity_t, gravity_installer_t, gravity_installer_t)
+
+# Network access
+#
+# ports
+type gravity_port_t;
+type gravity_installer_port_t;
+type gravity_vxlan_port_t;
+type gravity_docker_port_t;
+type gravity_kubernetes_port_t;
+gravity_port(gravity_port_t)
+gravity_port(gravity_installer_port_t)
+gravity_port(gravity_vxlan_port_t)
+gravity_port(gravity_docker_port_t)
+gravity_port(gravity_kubernetes_port_t)
+# allow bind/rw on kubernetes ports
+corenet_tcp_bind_kubernetes_port(gravity_kubernetes_port_t)
+corenet_tcp_bind_kubernetes_port(gravity_kubernetes_port_t)
+corenet_tcp_sendrecv_kubernetes_port(gravity_kubernetes_port_t)
+corenet_tcp_sendrecv_kubernetes_port(gravity_kubernetes_port_t)
+# allow bind/rw on port 5000
+corenet_tcp_bind_commplex_main_port(gravity_docker_port_t)
+corenet_tcp_sendrecv_commplex_main_port(gravity_docker_port_t)
+# allow bind/rw on port 7001
+corenet_tcp_bind_afs3_callback_port(gravity_kubernetes_port_t)
+corenet_tcp_sendrecv_afs3_callback_port(gravity_kubernetes_port_t)
+
+corenet_tcp_bind_generic_node(gravity_t)
+corenet_udp_bind_generic_node(gravity_t)
+corenet_tcp_connect_all_unreserved_ports(gravity_t)
+corenet_tcp_bind_all_unreserved_ports(gravity_t)
+corenet_udp_bind_all_unreserved_ports(gravity_t)
+
+# gravity can execute self without domain transition
+can_exec(gravity_t, gravity_exec_t)
+kernel_read_state(gravity_t)
+# Allow gravity to execute shell
+#corecmd_exec_shell(gravity_t)
+# Execute mount without domain transition
+mount_exec(gravity_t)
+# read /var/run/mount/utab?
+#mount_manage_pid_files(gravity_t)
+# execute ifconfig and access network configuration
+sysnet_exec_ifconfig(gravity_t)
+sysnet_read_config(gravity_t)
+files_search_etc(gravity_t)
 files_read_etc_files(gravity_t)
+# FIXME: what's this for?
+allow gravity_t self:fifo_file rw_fifo_file_perms;
+logging_send_syslog_msg(gravity_t)
 
+userdom_list_user_home_content(gravity_t)
+files_manage_generic_tmp_files(gravity_t)
+userdom_manage_user_tmp_files(gravity_t)
+domain_use_interactive_fds(gravity_t)
 auth_use_nsswitch(gravity_t)
-
 miscfiles_read_localization(gravity_t)
-
 sysnet_dns_name_resolve(gravity_t)
 
-domain_auto_trans(unconfined_t, gravity_exec_t, gravity_t)
-# Enable unconfined_r role access to gravity_t domain
-role unconfined_r types gravity_t;
-# FIXME(dmitri): figure out whether this is really necessary
-#allow unconfined_t gravity_exec_t:file { ioctl read getattr map execute execute_no_trans open entrypoint };
-#allow unconfined_t gravity_exec_t:file { entrypoint };
-#allow unconfined_t gravity_exec_t:process { transition };
+
+allow gravity_t gravity_port_type:tcp_socket { connect listen name_bind };
+allow gravity_t self:tcp_socket { accept listen };
+
+# TODO(dmitri): debugging installer
+allow gravity_t self:unix_dgram_socket { connect create getattr setopt };
+# this seems to be required for boltdb.open('gravity.db')
+allow gravity_t self:capability { dac_override };
+#allow gravity_t gravity_port_t:tcp_socket { name_bind listen };
