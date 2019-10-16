@@ -1,4 +1,4 @@
-policy_module(gravity, 5.5.0)
+policy_module(gravity, 6.0.0)
 
 attribute_role gravity_roles;
 attribute gravity_port_type;
@@ -8,15 +8,14 @@ type gravity_exec_t;
 init_daemon_domain(gravity_t, gravity_exec_t)
 role gravity_roles types gravity_t;
 
-# TODO: remove once the policy has been tested and proven to work
-#permissive gravity_t;
-
 type gravity_state_t;
 files_type(gravity_state_t)
 ubac_constrained(gravity_state_t)
 manage_dirs_pattern(gravity_t, gravity_state_t, gravity_state_t)
 manage_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
 manage_lnk_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
+# manage installer/agent socket files in local state directory
+manage_sock_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
 files_var_lib_filetrans(gravity_t, gravity_state_t, { dir file lnk_file })
 
 # gravity log files
@@ -48,12 +47,36 @@ userdom_user_tmp_filetrans(gravity_t, gravity_tmp_t, dir)
 # installer directory
 type gravity_installer_t;
 files_type(gravity_installer_t)
+#FIXME: installer directory is supposed to be radonly but installer
+#also creates the state directory locally so this operation needs
+#write permission.
+#If this works - move to an interface with a descriptive name
 read_files_pattern(gravity_t, gravity_installer_t, gravity_installer_t)
+filetrans_pattern(gravity_t, gravity_installer_t, gravity_state_t, { dir }, ".gravity")
+filetrans_pattern(gravity_t, gravity_state_t, gravity_unit_t, { file }, "gravity-installer.service")
+filetrans_pattern(gravity_t, gravity_state_t, gravity_unit_t, { file }, "gravity-agent.service")
+filetrans_pattern(gravity_t, gravity_state_t, gravity_runtime_t, { file }, "installer.sock")
+
+# Domain for socket files (common for planet and gravity)
+type gravity_runtime_t alias gravity_var_run_t;
+files_pid_file(gravity_runtime_t)
+manage_sock_files_pattern(gravity_t, gravity_runtime_t, gravity_runtime_t)
 
 # Domain for gravity (installer) agents
 type gravity_unit_t;
-# TODO(ifdef)
 systemd_unit_file(gravity_unit_t)
+manage_files_pattern(gravity_t, gravity_unit_t, gravity_unit_t)
+systemd_exec_systemctl(gravity_t)
+init_reload_services(gravity_t)
+allow gravity_t gravity_unit_t:file rw_file_perms;
+allow gravity_t gravity_unit_t:service manage_service_perms;
+# Allow search and access to systemctl
+gen_require(`
+	attribute systemd_unit_file_type;
+	type init_t;
+')
+allow gravity_t systemd_unit_file_type:dir search;
+allow gravity_t init_t:service { disable enable status stop start };
 
 # Network access
 #
@@ -90,7 +113,7 @@ corenet_tcp_bind_all_unreserved_ports(gravity_t)
 corenet_udp_bind_all_unreserved_ports(gravity_t)
 allow gravity_t gravity_installer_port_t:tcp_socket { connect listen name_bind name_connect };
 allow gravity_t gravity_port_t:tcp_socket { connect listen name_bind name_connect };
-allow gravity_t gravity_agent_port_t:tcp_socket { connect name_connect };
+allow gravity_t gravity_agent_port_t:tcp_socket { connect listen name_bind bind name_connect };
 allow gravity_t gravity_docker_port_t:tcp_socket { connect name_connect };
 
 # gravity can execute self without domain transition
@@ -140,9 +163,6 @@ gravity_planet_domtrans(gravity_t)
 gravity_planet_stream_connect(gravity_t)
 
 # Manage planet.sock in /run
-type gravity_runtime_t alias gravity_var_run_t;
-files_pid_file(gravity_runtime_t)
-#init_daemon_pid_file(gravity_runtime_t, file, "planet.sock")
 allow gravity_planet_t gravity_runtime_t:dir setattr_dir_perms;
 files_pid_filetrans(gravity_planet_t, gravity_runtime_t, { sock_file }, "planet.sock")
 
@@ -158,12 +178,6 @@ allow gravity_t self:unix_dgram_socket { connect create getattr setopt };
 allow gravity_t self:capability { dac_override };
 #allow gravity_t gravity_port_t:tcp_socket { name_bind listen };
 
-# Allow search and access to systemctl
-gen_require(`
-	type systemd_systemctl_exec_t, systemd_unit_file_t;
-')
-allow gravity_t systemd_systemctl_exec_t:file { getattr execute open read };
-allow gravity_t systemd_unit_file_t:dir search;
 
 gen_require(`
 	type groupadd_exec_t, useradd_exec_t;
@@ -173,3 +187,16 @@ allow gravity_t useradd_exec_t:file getattr;
 
 # Allow `gravity report` to read journald files (??)
 #systemd_read_journal_files(gravity_t)
+
+
+# TODO: next denials to take care of
+# [ERROR]: The following pre-flight checks failed:
+# 	[×] open /lib/modules/3.10.0-1062.1.2.el7.x86_64/modules.builtin: permission denied (failed to validate kernel modules)
+# 	[×] open /lib/modules/3.10.0-1062.1.2.el7.x86_64/modules.builtin: permission denied (failed to validate kernel modules)
+# 	[×] open /proc/net/tcp: permission denied, failed to query sockets, failed to query socket connections (failed to query socket connections)
+# 	[×] permission denied (failed to validate storage requirements)
+# 	[×] open /proc/sys/net/ipv4/ip_forward: permission denied (failed to query sysctl parameter net.ipv4.ip_forward)
+# 	[×] open /proc/sys/net/bridge/bridge-nf-call-iptables: permission denied (failed to query sysctl parameter net.bridge.bridge-nf-call-iptables)
+# 	[×] open /proc/sys/fs/may_detach_mounts: permission denied (failed to query sysctl parameter fs.may_detach_mounts)
+# 	[×] lstat /proc/irq: permission denied (failed to obtain running process list)
+# 	[×] open /proc/net/tcp: permission denied, failed to query sockets, failed to query socket connections (failed to query socket connections)

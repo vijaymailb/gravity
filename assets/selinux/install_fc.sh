@@ -13,6 +13,8 @@ function setup_file_contexts {
   # Label the installer
   semanage fcontext -a -t gravity_exec_t "${DIR}/gravity"
   semanage fcontext -a -t gravity_log_t "${DIR}/gravity-(install|system)\.log"
+  semanage fcontext -a -t gravity_state_t "${DIR}/.gravity"
+  semanage fcontext -a -t gravity_unit_t "${DIR}/.gravity/gravity-(installer|agent)\.service"
   # Apply labels
   restorecon -Rv "${DIR}"
 }
