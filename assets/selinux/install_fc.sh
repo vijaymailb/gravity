@@ -22,15 +22,16 @@ function setup_ports {
   semanage port -a -t gravity_installer_port_t -p tcp 61022-61025
   semanage port -a -t gravity_installer_port_t -p tcp 61080
   # Cluster ports
+  semanage port -a -t gravity_port_t -p tcp 32009
+
   semanage port -a -t gravity_port_t -p tcp 4242
   semanage port -a -t gravity_port_t -p tcp 3012
   semanage port -a -t gravity_port_t -p tcp 7373
   semanage port -a -t gravity_port_t -p tcp 7496
-  semanage port -a -t gravity_port_t -p tcp 7575
-  semanage port -a -t gravity_port_t -p tcp 32009
   semanage port -a -t gravity_port_t -p tcp 3008
   semanage port -a -t gravity_port_t -p tcp 3022
   semanage port -a -t gravity_port_t -p tcp 3080
+  semanage port -a -t gravity_agent_port_t -p tcp 7575
   semanage port -a -t gravity_kubernetes_port_t -p tcp 2379-2380
   # these ports are reserved and overridden in the policy
   # semanage port -a -t gravity_kubernetes_port_t -p tcp 4001

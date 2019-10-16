@@ -52,16 +52,31 @@ manage_dirs_pattern(gravity_t, gravity_installer_t, gravity_installer_t)
 manage_files_pattern(gravity_t, gravity_installer_t, gravity_installer_t)
 read_files_pattern(gravity_t, gravity_installer_t, gravity_installer_t)
 
+# wizard state
+type gravity_wizard_state_t;
+files_type(gravity_installer_t)
+# Allow access to /usr/local/share/gravity/wizard/wizard.db
+allow gravity_t usr_t:dir search_dir_perms;
+allow gravity_t usr_t:dir create_dir_perms;
+manage_dirs_pattern(gravity_t, gravity_wizard_state_t, gravity_wizard_state_t)
+manage_files_pattern(gravity_t, gravity_wizard_state_t, gravity_wizard_state_t)
+read_files_pattern(gravity_t, gravity_wizard_state_t, gravity_wizard_state_t)
+files_usr_filetrans(gravity_t, gravity_wizard_state_t, {dir}, "wizard")
+files_usr_filetrans(gravity_t, gravity_wizard_state_t, {file}, "wizard.db")
+
 # Network access
 #
 # ports
 type gravity_port_t;
 type gravity_installer_port_t;
+type gravity_agent_port_t;
 type gravity_vxlan_port_t;
 type gravity_docker_port_t;
 type gravity_kubernetes_port_t;
+
 gravity_port(gravity_port_t)
 gravity_port(gravity_installer_port_t)
+gravity_port(gravity_agent_port_t)
 gravity_port(gravity_vxlan_port_t)
 gravity_port(gravity_docker_port_t)
 gravity_port(gravity_kubernetes_port_t)
@@ -82,6 +97,10 @@ corenet_udp_bind_generic_node(gravity_t)
 corenet_tcp_connect_all_unreserved_ports(gravity_t)
 corenet_tcp_bind_all_unreserved_ports(gravity_t)
 corenet_udp_bind_all_unreserved_ports(gravity_t)
+allow gravity_t gravity_installer_port_t:tcp_socket { connect listen name_bind name_connect };
+allow gravity_t gravity_port_t:tcp_socket { connect listen name_bind name_connect };
+allow gravity_t gravity_agent_port_t:tcp_socket { connect name_connect };
+allow gravity_t gravity_docker_port_t:tcp_socket { connect name_connect };
 
 # gravity can execute self without domain transition
 can_exec(gravity_t, gravity_exec_t)
@@ -101,19 +120,41 @@ files_read_etc_files(gravity_t)
 allow gravity_t self:fifo_file rw_fifo_file_perms;
 logging_send_syslog_msg(gravity_t)
 
+# Allow to search through user's home to be able to read installer content (gravity_installer_t)
 userdom_list_user_home_content(gravity_t)
+userdom_search_user_home_dirs(gravity_t)
+
+# Allow rw access to $TMPDIR
 files_manage_generic_tmp_files(gravity_t)
 userdom_manage_user_tmp_files(gravity_t)
+
 domain_use_interactive_fds(gravity_t)
 auth_use_nsswitch(gravity_t)
 miscfiles_read_localization(gravity_t)
 sysnet_dns_name_resolve(gravity_t)
 
 
-allow gravity_t gravity_port_type:tcp_socket { connect listen name_bind };
 allow gravity_t self:tcp_socket { accept listen };
 
+#####################################
+# Planet
+#
+type gravity_planet_t;
+type gravity_planet_exec_t;
+init_daemon_domain(gravity_planet_t, gravity_planet_exec_t)
+#gravity_planet_exec(gravity_t)
+gravity_planet_domtrans(gravity_t)
+
+# Manage planet.sock in /var/run
+type gravity_planet_var_run_t;
+files_pid_file(gravity_planet_var_run_t)
+allow gravity_planet_t gravity_planet_var_run_t:dir setattr_dir_perms;
+files_pid_filetrans(gravity_planet_t, gravity_planet_var_run_t, { dir sock_file }, "planet.sock")
+
+
 # TODO(dmitri): debugging installer
+# Warning: state of flux beyond this line
+#
 allow gravity_t self:unix_dgram_socket { connect create getattr setopt };
 # this seems to be required for boltdb.open('gravity.db')
 allow gravity_t self:capability { dac_override };

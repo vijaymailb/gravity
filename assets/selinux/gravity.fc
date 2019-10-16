@@ -2,3 +2,4 @@
 /usr/local/bin/gravity		--	gen_context(system_u:object_r:gravity_exec_t,s0)
 /var/lib/gravity(/.*)?		gen_context(system_u:object_r:gravity_state_t,s0)
 /var/log/gravity-(install|system)\.log	--	gen_context(system_u:object_r:gravity_log_t,s0)
+/usr/local/share/gravity/wizard	-d 	gen_context(system_u:object_r:gravity_wizard_state_t,s0)
