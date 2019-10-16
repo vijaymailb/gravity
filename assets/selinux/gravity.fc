@@ -1,0 +1,6 @@
+/usr/bin/gravity		--	gen_context(system_u:object_r:gravity_exec_t,s0)
+/usr/local/bin/gravity		--	gen_context(system_u:object_r:gravity_exec_t,s0)
+/var/lib/gravity(/.*)?		gen_context(system_u:object_r:gravity_state_t,s0)
+/var/log/gravity-(install|system)\.log	--	gen_context(system_u:object_r:gravity_log_t,s0)
+/etc/systemd/system/gravity__*\.service --	gen_context(system_u:object_r:gravity_unit_t,s0)
+/run/planet.sock	--	gen_context(system_u:object_r:gravity_runtime_t,s0)

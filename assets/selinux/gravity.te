@@ -1,0 +1,180 @@
+policy_module(gravity, 5.5.0)
+
+attribute_role gravity_roles;
+attribute gravity_port_type;
+
+type gravity_t;
+type gravity_exec_t;
+init_daemon_domain(gravity_t, gravity_exec_t)
+role gravity_roles types gravity_t;
+
+# TODO: remove once the policy has been tested and proven to work
+#permissive gravity_t;
+
+type gravity_state_t;
+files_type(gravity_state_t)
+ubac_constrained(gravity_state_t)
+manage_dirs_pattern(gravity_t, gravity_state_t, gravity_state_t)
+manage_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
+manage_lnk_files_pattern(gravity_t, gravity_state_t, gravity_state_t)
+files_var_lib_filetrans(gravity_t, gravity_state_t, { dir file lnk_file })
+
+# gravity log files
+type gravity_log_t;
+logging_log_file(gravity_log_t)
+manage_dirs_pattern(gravity_t, gravity_log_t, gravity_log_t)
+append_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+create_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+setattr_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+logging_log_filetrans(gravity_t, gravity_log_t, {dir file})
+
+type gravity_tmp_t;
+files_tmp_file(gravity_tmp_t)
+manage_dirs_pattern(gravity_t, gravity_tmp_t, gravity_tmp_t)
+manage_files_pattern(gravity_t, gravity_tmp_t, gravity_tmp_t)
+manage_sock_files_pattern(gravity_t, gravity_tmp_t, gravity_tmp_t)
+manage_lnk_files_pattern(gravity_t, gravity_tmp_t, gravity_tmp_t)
+files_tmp_filetrans(gravity_t, gravity_tmp_t, { file dir lnk_file sock_file })
+userdom_user_tmp_filetrans(gravity_t, gravity_tmp_t, dir)
+
+# FIXME: enable when/if necessary
+# type gravity_tmpfs_t;
+# manage_files_pattern(gravity_t, gravity_tmpfs_t, gravity_tmpfs_t)
+# manage_fifo_files_pattern(gravity_t, gravity_tmpfs_t, gravity_tmpfs_t)
+# manage_lnk_files_pattern(gravity_t, gravity_tmpfs_t, gravity_tmpfs_t)
+# manage_sock_files_pattern(gravity_t, gravity_tmpfs_t, gravity_tmpfs_t)
+# fs_tmpfs_filetrans(gravity_t, gravity_tmpfs_t, {file fifo_file lnk_file sock_file})
+
+# installer directory
+type gravity_installer_t;
+files_type(gravity_installer_t)
+read_files_pattern(gravity_t, gravity_installer_t, gravity_installer_t)
+
+# Domain for gravity (installer) agents
+type gravity_unit_t;
+# TODO(ifdef)
+systemd_unit_file(gravity_unit_t)
+
+# Network access
+#
+# ports
+type gravity_port_t;
+type gravity_installer_port_t;
+type gravity_agent_port_t;
+type gravity_vxlan_port_t;
+type gravity_docker_port_t;
+type gravity_kubernetes_port_t;
+
+gravity_port(gravity_port_t)
+gravity_port(gravity_installer_port_t)
+gravity_port(gravity_agent_port_t)
+gravity_port(gravity_vxlan_port_t)
+gravity_port(gravity_docker_port_t)
+gravity_port(gravity_kubernetes_port_t)
+# allow bind/rw on kubernetes ports
+corenet_tcp_bind_kubernetes_port(gravity_kubernetes_port_t)
+corenet_tcp_bind_kubernetes_port(gravity_kubernetes_port_t)
+corenet_tcp_sendrecv_kubernetes_port(gravity_kubernetes_port_t)
+corenet_tcp_sendrecv_kubernetes_port(gravity_kubernetes_port_t)
+# allow bind/rw on port 5000
+corenet_tcp_bind_commplex_main_port(gravity_docker_port_t)
+corenet_tcp_sendrecv_commplex_main_port(gravity_docker_port_t)
+# allow bind/rw on port 7001
+corenet_tcp_bind_afs3_callback_port(gravity_kubernetes_port_t)
+corenet_tcp_sendrecv_afs3_callback_port(gravity_kubernetes_port_t)
+
+corenet_tcp_bind_generic_node(gravity_t)
+corenet_udp_bind_generic_node(gravity_t)
+corenet_tcp_connect_all_unreserved_ports(gravity_t)
+corenet_tcp_bind_all_unreserved_ports(gravity_t)
+corenet_udp_bind_all_unreserved_ports(gravity_t)
+allow gravity_t gravity_installer_port_t:tcp_socket { connect listen name_bind name_connect };
+allow gravity_t gravity_port_t:tcp_socket { connect listen name_bind name_connect };
+allow gravity_t gravity_agent_port_t:tcp_socket { connect name_connect };
+allow gravity_t gravity_docker_port_t:tcp_socket { connect name_connect };
+
+# gravity can execute self without domain transition
+can_exec(gravity_t, gravity_exec_t)
+kernel_read_state(gravity_t)
+# Allow gravity to execute shell
+#corecmd_exec_shell(gravity_t)
+# Execute mount without domain transition
+mount_exec(gravity_t)
+# read /var/run/mount/utab?
+#mount_manage_pid_files(gravity_t)
+# execute ifconfig and access network configuration
+sysnet_exec_ifconfig(gravity_t)
+sysnet_read_config(gravity_t)
+files_search_etc(gravity_t)
+files_read_etc_files(gravity_t)
+logging_send_syslog_msg(gravity_t)
+
+# FIXME: what's this for?
+allow gravity_t self:fifo_file rw_fifo_file_perms;
+
+# Allow to search through user's home to be able to read installer content (gravity_installer_t)
+userdom_list_user_home_content(gravity_t)
+userdom_search_user_home_dirs(gravity_t)
+
+# Allow rw access to $TMPDIR
+files_manage_generic_tmp_files(gravity_t)
+userdom_manage_user_tmp_files(gravity_t)
+
+domain_use_interactive_fds(gravity_t)
+auth_use_nsswitch(gravity_t)
+miscfiles_read_localization(gravity_t)
+sysnet_dns_name_resolve(gravity_t)
+selinux_get_enforce_mode(gravity_t)
+
+
+allow gravity_t self:tcp_socket { accept listen };
+
+#####################################
+# Planet
+#
+type gravity_planet_t;
+type gravity_planet_exec_t;
+init_daemon_domain(gravity_planet_t, gravity_planet_exec_t)
+#gravity_planet_exec(gravity_t)
+gravity_planet_domtrans(gravity_t)
+gravity_planet_stream_connect(gravity_t)
+
+# Manage planet.sock in /run
+type gravity_runtime_t alias gravity_var_run_t;
+files_pid_file(gravity_runtime_t)
+#init_daemon_pid_file(gravity_runtime_t, file, "planet.sock")
+allow gravity_planet_t gravity_runtime_t:dir setattr_dir_perms;
+files_pid_filetrans(gravity_planet_t, gravity_runtime_t, { dir sock_file }, "planet.sock")
+
+# Allow planet to read resolv.conf generated by systemd-resolved
+ifdef(`init-systemd',`
+	systemd_read_resolved_runtime(gravity_planet_t)
+')
+
+# TODO(dmitri): debugging installer
+# Warning: state of flux beyond this line
+#
+allow gravity_t self:unix_dgram_socket { connect create getattr setopt };
+# this seems to be required for boltdb.open('gravity.db')
+allow gravity_t self:capability { dac_override };
+#allow gravity_t gravity_port_t:tcp_socket { name_bind listen };
+
+ifdef(`init-systemd',`
+	# Allow search and access to systemctl
+	gen_require(`
+		type systemd_systemctl_exec_t;
+	')
+	# FIXME: is there a better way to allow exec of systemctl?
+	allow gravity_t systemd_systemctl_exec_t:file { getattr execute };
+	allow gravity_t systemd_unit_file_t:dir search;
+')
+
+
+gen_require(`
+	type groupadd_exec_t, useradd_exec_t;
+')
+allow gravity_t groupadd_exec_t:file getattr;
+allow gravity_t useradd_exec_t:file getattr;
+
+# Allow `gravity report` to read journald files (??)
+#systemd_read_journal_files(gravity_t)
