@@ -134,6 +134,9 @@ func (u *UsersService) DeleteAPIKey(userEmail, token string) error {
 }
 
 func (u *UsersService) CreateProvisioningToken(t storage.ProvisioningToken) (*storage.ProvisioningToken, error) {
+	if t.Upsert {
+		return u.backend.UpdateProvisioningToken(t)
+	}
 	return u.backend.CreateProvisioningToken(t)
 }
 

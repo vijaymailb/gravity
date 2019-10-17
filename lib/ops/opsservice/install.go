@@ -888,6 +888,7 @@ func (s *site) newProvisioningToken(operation ops.SiteOperation) (token string, 
 		Type:        storage.ProvisioningTokenTypeExpand,
 		OperationID: operation.ID,
 		UserEmail:   agentUser.GetName(),
+		Upsert:      true,
 	}
 	if operation.Type == ops.OperationExpand {
 		// Set a TTL for expand provisioning token.

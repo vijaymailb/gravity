@@ -15,6 +15,7 @@ function setup_file_contexts {
   semanage fcontext -a -t gravity_log_t "${DIR}/gravity-(install|system)\.log"
   semanage fcontext -a -t gravity_state_t "${DIR}/.gravity"
   semanage fcontext -a -t gravity_unit_t "${DIR}/.gravity/gravity-(installer|agent)\.service"
+  semanage fcontext -a -t gravity_state_t "${DIR}/crashreport(.*)?\.tgz"
   # Apply labels
   restorecon -Rv "${DIR}"
 }

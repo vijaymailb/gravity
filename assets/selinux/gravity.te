@@ -22,9 +22,10 @@ files_var_lib_filetrans(gravity_t, gravity_state_t, { dir file lnk_file })
 type gravity_log_t;
 logging_log_file(gravity_log_t)
 manage_dirs_pattern(gravity_t, gravity_log_t, gravity_log_t)
-append_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
-create_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
-setattr_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+manage_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+#append_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+#create_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
+#setattr_files_pattern(gravity_t, gravity_log_t, gravity_log_t)
 logging_log_filetrans(gravity_t, gravity_log_t, {dir file})
 
 type gravity_tmp_t;
@@ -44,15 +45,15 @@ userdom_user_tmp_filetrans(gravity_t, gravity_tmp_t, dir)
 # manage_sock_files_pattern(gravity_t, gravity_tmpfs_t, gravity_tmpfs_t)
 # fs_tmpfs_filetrans(gravity_t, gravity_tmpfs_t, {file fifo_file lnk_file sock_file})
 
-# installer directory
+# Installer directory
 type gravity_installer_t;
 files_type(gravity_installer_t)
-#FIXME: installer directory is supposed to be radonly but installer
-#also creates the state directory locally so this operation needs
-#write permission.
-#If this works - move to an interface with a descriptive name
+# Installer directory initially readonly
 read_files_pattern(gravity_t, gravity_installer_t, gravity_installer_t)
+# Installer directory file transitions for writable content
 filetrans_pattern(gravity_t, gravity_installer_t, gravity_state_t, { dir }, ".gravity")
+filetrans_pattern(gravity_t, gravity_installer_t, gravity_state_t, { file }, "crashreport.tgz")
+# Transition unit files/sockets to expected domain
 filetrans_pattern(gravity_t, gravity_state_t, gravity_unit_t, { file }, "gravity-installer.service")
 filetrans_pattern(gravity_t, gravity_state_t, gravity_unit_t, { file }, "gravity-agent.service")
 filetrans_pattern(gravity_t, gravity_state_t, gravity_runtime_t, { file }, "installer.sock")
@@ -72,7 +73,7 @@ allow gravity_t gravity_unit_t:file rw_file_perms;
 allow gravity_t gravity_unit_t:service manage_service_perms;
 # Allow search and access to systemctl
 gen_require(`
-	attribute systemd_unit_file_type;
+	attribute systemd_unit_file_type, modules_object_t;
 	type init_t;
 ')
 allow gravity_t systemd_unit_file_type:dir search;
@@ -118,7 +119,6 @@ allow gravity_t gravity_docker_port_t:tcp_socket { connect name_connect };
 
 # gravity can execute self without domain transition
 can_exec(gravity_t, gravity_exec_t)
-kernel_read_state(gravity_t)
 # Allow gravity to execute shell
 #corecmd_exec_shell(gravity_t)
 # Execute mount without domain transition
@@ -129,7 +129,20 @@ mount_exec(gravity_t)
 sysnet_exec_ifconfig(gravity_t)
 sysnet_read_config(gravity_t)
 files_search_etc(gravity_t)
-files_read_etc_files(gravity_t)
+# Allow gravity_t write access for /etc/modules-load.d/
+files_rw_etc_files(gravity_t)
+# Allow to write unit files under /etc/systemd/system
+allow gravity_t systemd_unit_file_type:file manage_file_perms;
+# Allow RO access to lib/modules/* (preflight checks)
+allow gravity_t modules_object_t:file read_file_perms;
+allow gravity_t modules_object_t:dir search_dir_perms;
+kernel_read_state(gravity_t)
+kernel_read_network_state(gravity_t)
+kernel_read_all_sysctls(gravity_t)
+kernel_read_messages(gravity_t)
+
+# Allow gravity to read process state
+domain_read_all_domains_state(gravity_t)
 logging_send_syslog_msg(gravity_t)
 
 # FIXME: what's this for?
@@ -170,33 +183,44 @@ files_pid_filetrans(gravity_planet_t, gravity_runtime_t, { sock_file }, "planet.
 # FIXME: seems to be missing in targeted policy on CentOS
 #systemd_read_resolved_runtime(gravity_planet_t)
 
+# ===============================================
 # TODO(dmitri): debugging installer
+#
 # Warning: state of flux beyond this line
 #
 allow gravity_t self:unix_dgram_socket { connect create getattr setopt };
-# this seems to be required for boltdb.open('gravity.db')
-allow gravity_t self:capability { dac_override };
-#allow gravity_t gravity_port_t:tcp_socket { name_bind listen };
-
+# DAC_OVERRIDE this seems to be required for boltdb.open('gravity.db')
+allow gravity_t self:capability { dac_override sys_ptrace chown };
+# FOWNER required to chmod the binary (gravity_t) in current directory (??)
+# FIXME: is this required -maybe a result of working directory made RO (??)
+#allow gravity_t self:capability { fowner };
+#dontaudit gravity_t self:capability { fowner };
 
 gen_require(`
 	type groupadd_exec_t, useradd_exec_t;
+	type fs_t;
 ')
 allow gravity_t groupadd_exec_t:file getattr;
 allow gravity_t useradd_exec_t:file getattr;
+# Allow lstat /var/lib/gravity (??)
+# FIXME: find out which syscall is this exactly and place in the code base
+allow gravity_t fs_t:filesystem getattr;
+# Allow gravity to install itself into /usr/bin
+allow gravity_t bin_t:dir { add_name write remove_name };
+allow gravity_t bin_t:file { create open write setattr rename unlink };
+
+# "failed to get mount info on /proc"
+# lib/systeminfo.collectFilesystemUsage 
+allow gravity_t proc_t:filesystem getattr;
 
 # Allow `gravity report` to read journald files (??)
 #systemd_read_journal_files(gravity_t)
 
+# FIXME
+can_exec(gravity_t, bin_t)
+allow gravity_t bin_t:file entrypoint;
 
 # TODO: next denials to take care of
 # [ERROR]: The following pre-flight checks failed:
-# 	[×] open /lib/modules/3.10.0-1062.1.2.el7.x86_64/modules.builtin: permission denied (failed to validate kernel modules)
-# 	[×] open /lib/modules/3.10.0-1062.1.2.el7.x86_64/modules.builtin: permission denied (failed to validate kernel modules)
-# 	[×] open /proc/net/tcp: permission denied, failed to query sockets, failed to query socket connections (failed to query socket connections)
 # 	[×] permission denied (failed to validate storage requirements)
-# 	[×] open /proc/sys/net/ipv4/ip_forward: permission denied (failed to query sysctl parameter net.ipv4.ip_forward)
-# 	[×] open /proc/sys/net/bridge/bridge-nf-call-iptables: permission denied (failed to query sysctl parameter net.bridge.bridge-nf-call-iptables)
-# 	[×] open /proc/sys/fs/may_detach_mounts: permission denied (failed to query sysctl parameter fs.may_detach_mounts)
 # 	[×] lstat /proc/irq: permission denied (failed to obtain running process list)
-# 	[×] open /proc/net/tcp: permission denied, failed to query sockets, failed to query socket connections (failed to query socket connections)
