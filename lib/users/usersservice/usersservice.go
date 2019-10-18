@@ -134,10 +134,14 @@ func (u *UsersService) DeleteAPIKey(userEmail, token string) error {
 }
 
 func (u *UsersService) CreateProvisioningToken(t storage.ProvisioningToken) (*storage.ProvisioningToken, error) {
-	if t.Upsert {
+	result, err := u.backend.CreateProvisioningToken(t)
+	if trace.IsAlreadyExists(err) && t.Upsert {
 		return u.backend.UpdateProvisioningToken(t)
 	}
-	return u.backend.CreateProvisioningToken(t)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result, nil
 }
 
 func (u *UsersService) GetSiteProvisioningTokens(siteDomain string) ([]storage.ProvisioningToken, error) {

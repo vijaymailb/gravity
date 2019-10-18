@@ -1659,9 +1659,10 @@ func (d DNSOverrides) FormatZones() string {
 // SystemState defines the system configuration for gravity - location
 // of state directory, etc.
 type SystemState struct {
+	// FIXME: remove me
 	// Disk defines the block device (disk or partition) to use
 	// for gravity system state directory
-	Device Device `json:"device"`
+	// Device Device `json:"device"`
 	// StateDir is where all gravity data is stored on the server
 	StateDir string `json:"state_dir"`
 }
