@@ -288,6 +288,8 @@ type Application struct {
 	SystemExportRuntimeJournalCmd SystemExportRuntimeJournalCmd
 	// SystemStreamRuntimeJournalCmd streams contents of the runtime journal to a file
 	SystemStreamRuntimeJournalCmd SystemStreamRuntimeJournalCmd
+	// SystemSelinuxBootstrapCmd configures SELinux file contexts and ports on the node
+	SystemSelinuxBootstrapCmd SystemSelinuxBootstrapCmd
 	// SystemGCJournalCmd cleans up stale journal files
 	SystemGCJournalCmd SystemGCJournalCmd
 	// SystemGCPackageCmd removes unused packages
@@ -392,6 +394,9 @@ type InstallCmd struct {
 	DNSZones *[]string
 	// Remote specifies whether the host should not be part of the cluster
 	Remote *bool
+	// SELinux specifies whether to run with SELinux support.
+	// This flag makes the installer run in its own SELinux domain
+	SELinux *bool
 	// FromService specifies whether this process runs in service mode.
 	//
 	// The installer runs the main installer code in service mode, while
@@ -421,6 +426,9 @@ type JoinCmd struct {
 	CloudProvider *string
 	// OperationID is the ID of the operation created via UI
 	OperationID *string
+	// SELinux specifies whether to run with SELinux support.
+	// This flag makes the installer run in its own SELinux domain
+	SELinux *bool
 	// FromService specifies whether this process runs in service mode.
 	//
 	// The agent runs the install/join code in service mode, while
@@ -969,6 +977,9 @@ type WizardCmd struct {
 	AdvertiseAddr *string
 	// Token is unique install token
 	Token *string
+	// SELinux specifies whether to run with SELinux support.
+	// This flag makes the installer run in its own SELinux domain
+	SELinux *bool
 	// FromService specifies whether this process runs in service mode.
 	//
 	// The installer runs the main installer code in service mode, while
@@ -1075,6 +1086,8 @@ type PackExportCmd struct {
 	OpsCenterURL *string
 	// FileMask is file mask for exported package
 	FileMask *string
+	// FileLabel optionally specifies SELinux label
+	FileLabel *string
 }
 
 // PackListCmd lists packages
@@ -1557,6 +1570,16 @@ type SystemExportRuntimeJournalCmd struct {
 // SystemStreamRuntimeJournalCmd streams contents of the runtime journal
 type SystemStreamRuntimeJournalCmd struct {
 	*kingpin.CmdClause
+}
+
+// SystemSelinuxBootstrapCmd configures SELinux file contexts and ports on the node
+type SystemSelinuxBootstrapCmd struct {
+	*kingpin.CmdClause
+	// Path specifies the optional output file where the bootstrap script is saved.
+	// In this case, the command does not execute the script
+	Path *string
+	// VxlanPort optionally specifies the new vxlan port
+	VxlanPort *int
 }
 
 // SystemGCJournalCmd manages cleanup of journal files

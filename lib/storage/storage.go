@@ -374,7 +374,7 @@ type Mount struct {
 	Name string `json:"name"`
 	// Source is the directory to mount
 	Source string `json:"source"`
-	// Destination is the mount destination dir
+	// Destination is the mount destination directory
 	Destination string `json:"destination"`
 	// CreateIfMissing is whether to create the source directory if it doesn't exist
 	CreateIfMissing bool `json:"create_if_missing"`
@@ -584,6 +584,8 @@ type Site struct {
 	DNSConfig DNSConfig `json:"dns_config"`
 	// InstallToken specifies the original token the cluster was installed with
 	InstallToken string `json:"install_token"`
+	// SELinux specifies whether the cluster is using SELinux support
+	SELinux bool `json:"selinux,omitempty"`
 }
 
 func (s *Site) Check() error {

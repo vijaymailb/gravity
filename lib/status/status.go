@@ -37,6 +37,7 @@ import (
 	pb "github.com/gravitational/satellite/agent/proto/agentpb"
 	"github.com/gravitational/satellite/monitoring"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/version"
 	"github.com/sirupsen/logrus"
 )
 
@@ -50,8 +51,10 @@ func FromCluster(ctx context.Context, operator ops.Operator, cluster ops.Site, o
 			State:     ops.SiteStateDegraded,
 			Reason:    cluster.Reason,
 			App:       cluster.App.Package,
+			SELinux:   cluster.SELinux,
 			Extension: newExtension(),
 		},
+		Version: version.Get(),
 	}
 
 	token, err := operator.GetExpandToken(cluster.Key())
@@ -175,6 +178,8 @@ type Status struct {
 	*Cluster `json:",inline,omitempty"`
 	// Agent describes the status of the system and individual nodes
 	*Agent `json:",inline,omitempty"`
+	// Version indicates the version of the gravity binary
+	Version version.Info `json:"version"`
 }
 
 // Cluster encapsulates collected cluster status information
@@ -197,7 +202,9 @@ type Cluster struct {
 	// Endpoints contains cluster and application endpoints.
 	Endpoints Endpoints `json:"endpoints"`
 	// Extension is a cluster status extension
-	Extension `json:",inline,omitempty"`
+	Extension Extension `json:"-"`
+	// SELinux indicates whether the SELinux support is on
+	SELinux bool `json:"selinux,omitempty"`
 }
 
 // Endpoints contains information about cluster and application endpoints.

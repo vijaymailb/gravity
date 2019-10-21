@@ -23,7 +23,8 @@
 ignored = [
   "github.com/Sirupsen/logrus",
   "github.com/gravitational/gravity/build/*",
-  "github.com/gravitational/gravity/e/build/*"
+  "github.com/gravitational/gravity/e/build/*",
+  "github.com/gravitational/gravity/lib/system/selinux/generate"
 ]
 
 [prune]
@@ -32,8 +33,7 @@ ignored = [
 
 [[override]]
   name = "github.com/gravitational/trace"
-  #version = "=1.1.9"
-  branch = "dmitri/proxy-error"
+  version = "=1.1.10"
 
 [[override]]
   name = "github.com/mitchellh/go-ps"
@@ -67,7 +67,7 @@ ignored = [
 
 [[constraint]]
   name = "github.com/gravitational/satellite"
-  version = "=6.1.2"
+  version = "=6.1.4"
 
 [[constraint]]
   name = "github.com/miekg/dns"
@@ -135,6 +135,10 @@ ignored = [
   revision = "edc3ab29cdff8694dd6feb85cfeb4b5f1b38ed9c"
 
 [[constraint]]
+  name = "github.com/opencontainers/selinux"
+  version = "=v1.3.0"
+
+[[constraint]]
   name = "github.com/opencontainers/go-digest"
   version = "v1.0.0-rc1"
 
@@ -157,8 +161,7 @@ ignored = [
 [[override]]
   name = "github.com/sirupsen/logrus"
   source = "github.com/gravitational/logrus"
-  #version = "=1.4.3"
-  branch = "dmitri/update-upstream"
+  version = "=1.4.3-alpha.1"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
@@ -282,6 +285,10 @@ ignored = [
 [[constraint]]
   name = "github.com/gizak/termui"
   version = "=v2.3.0"
+
+[[constraint]]
+  name = "github.com/google/shlex"
+  branch = "master"
 
 [[constraint]]
   name = "gopkg.in/check.v1"

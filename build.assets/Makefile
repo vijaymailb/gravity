@@ -29,6 +29,8 @@ MONITORING_APP_TAG ?= 0.0.1
 MONITORING_APP_BRANCH ?= $(MONITORING_APP_TAG)
 K8S_APP_TAG ?= 0.0.1
 TILLER_APP_TAG ?= 0.0.1
+SELINUX_BRANCH ?= distro/centos_rhel/7
+
 GOLFLAGS ?= -w -s
 
 # Git repositories
@@ -37,6 +39,7 @@ PLANET_REPO = git@github.com:gravitational/planet.git
 LOGGING_APP_REPO = git@github.com:gravitational/logging-app.git
 MONITORING_APP_REPO = git@github.com:gravitational/monitoring-app.git
 BANDWAGON_REPO = git@github.com:gravitational/bandwagon.git
+SELINUX_REPO = git@github.com:gravitational/selinux.git
 
 # Amazon S3
 BUILD_BUCKET_URL = s3://clientbuilds.gravitational.io
@@ -72,7 +75,14 @@ TELEKUBE_TSH_TAG := v3.2.13
 # Extra flags that may be provided when publishing telekube artifacts (e.g. --insecure)
 TELEKUBE_PUBLISH_FLAGS ?=
 
+GOCACHE_DOCKER_OPTIONS ?=
+GOCACHE ?= $(HOME)/.cache/go-build
+ifdef GOCACHE_ENABLED
+GOCACHE_DOCKER_OPTIONS = -v $(GOCACHE):$(GOCACHE) -e "GOCACHE=$(GOCACHE)"
+endif
 BINARIES ?= tele gravity terraform-provider-gravity
+TARGETS ?= $(addprefix $(LOCAL_GRAVITY_BUILDDIR)/, $(BINARIES))
+HOST_TARGETS ?= $(addprefix $(GRAVITY_BUILDDIR)/, $(BINARIES))
 
 # release tarball path
 RELEASE_TARBALL_NAME := gravity-$(GRAVITY_VERSION)-$(OS)-$(ARCH)-bin.tar.gz
@@ -157,14 +167,14 @@ endef
 # build gravity binaries
 #
 .PHONY: build
-build:
-	@if [ "$(OS)" = "darwin" ]; then \
-		$(MAKE) build-on-host; \
-		ln -sf $(GRAVITY_BUILDDIR) $(GRAVITY_CURRENT_BUILDDIR); \
-	else \
-		$(MAKE) build-in-container; \
-		ln --symbolic --force --no-target-directory $(GRAVITY_BUILDDIR) $(GRAVITY_CURRENT_BUILDDIR); \
-	fi;
+build: selinux
+ifeq ($(OS),darwin)
+	$(MAKE) build-on-host
+	ln -sf $(GRAVITY_BUILDDIR) $(GRAVITY_CURRENT_BUILDDIR)
+else
+	$(MAKE) build-in-container
+	ln --symbolic --force --no-target-directory $(GRAVITY_BUILDDIR) $(GRAVITY_CURRENT_BUILDDIR)
+endif
 
 #
 # generate gRPC code
@@ -221,9 +231,12 @@ build-in-container: buildbox
 		   -e "GRAVITY_VERSION=$(GRAVITY_VERSION)" \
 		   -e "GRAVITY_TAG=$(GRAVITY_TAG)" \
 		   -e 'GRAVITY_LINKFLAGS=$(GRAVITY_LINKFLAGS)' \
-		   -e 'BINARIES=$(BINARIES)' \
+		   -e "GRAVITY_BUILDFLAGS=$(GRAVITY_BUILDFLAGS)" \
+		   -e "GRAVITY_BUILDTAGS=$(GRAVITY_BUILDTAGS)" \
+		   -e "TARGETS=$(TARGETS)" \
+		   $(GOCACHE_DOCKER_OPTIONS) \
 		   $(BBOX) \
-		   dumb-init make -C $(SRCDIR)/build.assets -j $(BINARIES)
+		   dumb-init make -C $(SRCDIR)/build.assets -j $(TARGETS)
 
 #
 # build gravity binaries on host
@@ -231,9 +244,8 @@ build-in-container: buildbox
 .PHONY: build-on-host
 build-on-host:
 	cd $(GOPATH)/src && \
-		LOCAL_GRAVITY_BUILDDIR=$(GRAVITY_BUILDDIR) \
-			$(MAKE) -C $(GOPATH)/src/github.com/gravitational/gravity/build.assets -j \
-			$(BINARIES)
+		$(MAKE) -C $(GOPATH)/src/github.com/gravitational/gravity/build.assets -j \
+		$(HOST_TARGETS)
 
 #
 # removes build artifacts.
@@ -287,7 +299,7 @@ publish-telekube-s3:
 # publish artifacts to S3
 #
 .PHONY: publish
-publish: push-teleport push-gravity push-bandwagon push-logging-app push-monitoring-app
+publish: push-teleport push-gravity push-bandwagon push-logging-app push-monitoring-app push-selinux
 
 #
 # prepare ansible variables for publishing to the hub
@@ -312,12 +324,21 @@ push-gravity:
 $(GRAVITY_BUILDDIR):
 	mkdir -p $@
 
+$(GOCACHE):
+	mkdir -p $@
+
 # Builds binaries inside a docker container
-.PHONY: $(BINARIES)
-$(BINARIES):
-	@echo -e "\n----> Building $(LOCAL_GRAVITY_BUILDDIR)/$@ binary...\n"
-	go build -o $(LOCAL_GRAVITY_BUILDDIR)/$@ -ldflags $(GRAVITY_LINKFLAGS) $(GRAVITY_PKG_PATH)/tool/$@
-	@echo "\nDone --> $(LOCAL_GRAVITY_BUILDDIR)/$@\n"
+.PHONY: $(TARGETS)
+$(TARGETS): | $(GOCACHE)
+	@echo -e "\n----> Building $@ binary...\n"
+	go build -o $@ -ldflags $(GRAVITY_LINKFLAGS) $(GRAVITY_BUILDFLAGS) -tags "$(GRAVITY_BUILDTAGS)" $(GRAVITY_PKG_PATH)/tool/$(@F)
+	@echo "\nDone --> $@\n"
+
+.PHONY: $(HOST_TARGETS)
+$(HOST_TARGETS): | $(GOCACHE)
+	@echo -e "\n----> Building $@ binary...\n"
+	go build -o $@ -ldflags $(GRAVITY_LINKFLAGS) $(GRAVITY_BUILDFLAGS) -tags "$(GRAVITY_BUILDTAGS)" $(GRAVITY_PKG_PATH)/tool/$(@F)
+	@echo "\nDone --> $@\n"
 
 .PHONY: compile
 compile: | $(GRAVITY_BUILDDIR)
@@ -394,7 +415,12 @@ site-app:
 	$(eval TMPDIR := $(shell mktemp -d --tmpdir=$(GRAVITY_BUILDDIR)))
 	cp -r $(ASSETSDIR)/site-app/* $(TMPDIR)
 	cp $(GRAVITY_BUILDDIR)/gravity $(TMPDIR)/images/site
-	cd $(TMPDIR) && VERSION=$(GRAVITY_TAG) GRAVITY="$(GRAVITY)" OPS_URL=$(OPS_URL) make import
+	cd $(TMPDIR) && \
+		VERSION=$(GRAVITY_TAG) \
+		GRAVITY="$(GRAVITY)" \
+		OPS_URL=$(OPS_URL) \
+		DOCKER_ARGS=$(DOCKER_ARGS) \
+		make import
 	$(GRAVITY) package export $(SITE_APP_PKG) $(SITE_APP_OUT)
 	rm -rf $(TMPDIR)
 
@@ -555,12 +581,43 @@ $(MONITORING_APP_OUT):
 push-monitoring-app: $(MONITORING_APP_OUT)
 	$(AWS) s3 cp $(S3_OPTS) $(MONITORING_APP_OUT) $(BUILD_BUCKET_URL)/monitoring-app/$(MONITORING_APP_TAG)
 
+.PHONY: selinux-policy-package
+selinux-policy-package: $(SELINUX_OUT)
+	$(GRAVITY) package delete $(SELINUX_POLICY_PKG) $(DELETE_OPTS) && \
+		$(GRAVITY) package import $(SELINUX_OUT) $(SELINUX_POLICY_PKG)
+
+
 #
 # enters bbox container (for debugging the containerized build process)
 #
 .PHONY: enter
 enter:
 	docker run -ti --rm=true $(BBOX) /bin/bash
+
+.PHONY: selinux
+selinux: $(SELINUX_ASSETS)
+ifeq ($(OS),linux)
+	$(MAKE) -C $(TOP)/lib/system/selinux
+endif
+
+.PHONY: push-selinux
+push-selinux: $(SELINUX_OUT)
+	$(AWS) s3 cp $(S3_OPTS) $(SELINUX_OUT) $(BUILD_BUCKET_URL)/selinux/centos/$(SELINUX_VERSION)
+
+$(SELINUX_ASSETS): $(SELINUX_OUT)
+	tar xf $^ -C $(@D) $(@F)
+
+$(SELINUX_OUT): | $(GRAVITY_BUILDDIR)
+	if ! $(AWS) s3 cp $(S3_OPTS) $(BUILD_BUCKET_URL)/selinux/centos/$(SELINUX_VERSION) $@; then \
+		mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && \
+		( test -d $(BUILDDIR)/selinux || git clone $(SELINUX_REPO) selinux ) && \
+		cd $(BUILDDIR)/selinux && \
+		git fetch --all && \
+		git checkout $(SELINUX_BRANCH) && \
+		git pull origin $(SELINUX_BRANCH) && git submodule update --init --recursive && \
+		make -C $(BUILDDIR)/selinux && \
+		tar czf $@ -C $(BUILDDIR)/selinux/output gravity.pp.bz2 container.pp.bz2 gravity.statedir.fc.template; \
+	fi
 
 #
 # buildbox container: container used for building packages

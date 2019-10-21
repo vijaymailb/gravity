@@ -209,9 +209,11 @@ const (
 	BlockingOperationEnvVar = "GRAVITY_BLOCKING_OPERATION"
 
 	// DockerRegistry is a default name for private docker registry
+	// Note: this has been moved to lib/defaults
 	DockerRegistry = "leader.telekube.local:5000"
 
 	// LocalRegistryAddr is the address of the local docker registry
+	// Note: this has been moved to lib/defaults
 	LocalRegistryAddr = "127.0.0.1:5000"
 
 	// Localhost is local host
@@ -221,6 +223,7 @@ const (
 	DockerEngineURL = "unix://var/run/docker.sock"
 
 	// DockerRegistryPort is the default port for connecting to private docker registries
+	// Note: this has been moved to lib/defaults
 	DockerRegistryPort = "5000"
 
 	// SiteInitLock is a name of a distributed site lock that is used for one time
@@ -706,6 +709,10 @@ const (
 	//
 	// Used in audit events.
 	ServiceSystem = "@system"
+
+	// GravitySystemContainerType specifies the SELinux domain for the system containers.
+	// For instance, application hook init containers run as system containers
+	GravitySystemContainerType = "gravity_container_system_t"
 )
 
 var (

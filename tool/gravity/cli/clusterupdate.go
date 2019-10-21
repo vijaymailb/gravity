@@ -18,6 +18,8 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"os/exec"
 
 	"github.com/gravitational/gravity/lib/app"
 	"github.com/gravitational/gravity/lib/constants"
@@ -29,7 +31,9 @@ import (
 	"github.com/gravitational/gravity/lib/pack"
 	"github.com/gravitational/gravity/lib/rpc"
 	"github.com/gravitational/gravity/lib/schema"
+	libstatus "github.com/gravitational/gravity/lib/status"
 	"github.com/gravitational/gravity/lib/storage"
+	"github.com/gravitational/gravity/lib/system/selinux"
 	"github.com/gravitational/gravity/lib/update"
 	clusterupdate "github.com/gravitational/gravity/lib/update/cluster"
 	"github.com/gravitational/version"
@@ -59,8 +63,17 @@ func updateTrigger(
 	updatePackage string,
 	manual, noValidateVersion bool,
 ) error {
-	ctx := context.TODO()
-	updater, err := newClusterUpdater(ctx, localEnv, updateEnv, updatePackage, manual, noValidateVersion)
+	seLinuxEnabled, err := querySELinuxEnabled(context.TODO())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if seLinuxEnabled {
+		if err := BootstrapSELinuxAndRespawn(context.TODO(), selinux.BootstrapConfig{}, localEnv); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	updater, err := newClusterUpdater(context.TODO(), localEnv, updateEnv, updatePackage,
+		manual, noValidateVersion, seLinuxEnabled)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -77,11 +90,12 @@ func newClusterUpdater(
 	ctx context.Context,
 	localEnv, updateEnv *localenv.LocalEnvironment,
 	updatePackage string,
-	manual, noValidateVersion bool,
+	manual, noValidateVersion, seLinuxEnabled bool,
 ) (updater, error) {
 	init := &clusterInitializer{
 		updatePackage: updatePackage,
 		unattended:    !manual,
+		seLinux:       seLinuxEnabled,
 	}
 	updater, err := newUpdater(ctx, localEnv, updateEnv, init)
 	if err != nil {
@@ -233,7 +247,7 @@ func (r clusterInitializer) newOperationPlan(
 	leader *storage.Server,
 ) (*storage.OperationPlan, error) {
 	plan, err := clusterupdate.InitOperationPlan(
-		ctx, localEnv, updateEnv, clusterEnv, operation.Key(), leader,
+		ctx, localEnv, updateEnv, clusterEnv, operation.Key(), leader, r.seLinux,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -279,6 +293,7 @@ type clusterInitializer struct {
 	updateLoc     loc.Locator
 	updatePackage string
 	unattended    bool
+	seLinux       bool
 }
 
 const (
@@ -391,4 +406,27 @@ Please use the gravity binary from the upgrade installer tarball to execute the 
 	}
 
 	return nil
+}
+
+func querySELinuxEnabled(ctx context.Context) (enabled bool, err error) {
+	status, err := queryClusterStatus(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return status.Cluster != nil && status.Cluster.SELinux, nil
+}
+
+func queryClusterStatus(ctx context.Context) (*libstatus.Status, error) {
+	out, err := exec.CommandContext(ctx, "gravity", "status", "--output=json").CombinedOutput()
+	log.WithField("output", string(out)).Info("Query cluster status.")
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch cluster status: %s", out)
+	}
+	var status struct {
+		libstatus.Status `json:"cluster"`
+	}
+	if err := json.Unmarshal(out, &status); err != nil {
+		return nil, trace.Wrap(err, "failed to interpret status as JSON")
+	}
+	return &status.Status, nil
 }

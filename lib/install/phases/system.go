@@ -42,7 +42,7 @@ func NewSystem(p fsm.ExecutorParams, operator ops.Operator, localPackages *local
 		Operator: operator,
 		Server:   p.Phase.Data.Server,
 	}
-	updater, err := system.NewPackageUpdater(localPackages)
+	updater, err := system.NewPackageUpdater(localPackages, system.WithSELinux(p.Plan.SELinux))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -70,7 +70,7 @@ func (p *systemExecutor) Execute(ctx context.Context) error {
 	p.Progress.NextStep("Installing system service %v:%v",
 		locator.Name, locator.Version)
 	p.Infof("Installing system service %v:%v", locator.Name, locator.Version)
-	return p.updater.Reinstall(storage.PackageUpdate{
+	return p.updater.Reinstall(ctx, storage.PackageUpdate{
 		From:   *p.Phase.Data.Package,
 		To:     *p.Phase.Data.Package,
 		Labels: p.Phase.Data.Labels,

@@ -42,12 +42,12 @@ RELEASE_OUT ?=
 TELEPORT_TAG = 3.2.13
 # TELEPORT_REPOTAG adapts TELEPORT_TAG to the teleport tagging scheme
 TELEPORT_REPOTAG := v$(TELEPORT_TAG)
-PLANET_TAG := 6.1.14-$(K8S_VER_SUFFIX)
+PLANET_TAG := 6.1.15-$(K8S_VER_SUFFIX)-34-g764e437
 PLANET_BRANCH := $(PLANET_TAG)
 K8S_APP_TAG := $(GRAVITY_TAG)
 TELEKUBE_APP_TAG := $(GRAVITY_TAG)
 WORMHOLE_APP_TAG := $(GRAVITY_TAG)
-LOGGING_APP_TAG ?= 6.0.2
+LOGGING_APP_TAG ?= 6.0.3
 MONITORING_APP_TAG ?= 6.0.5
 DNS_APP_TAG = 0.4.0
 BANDWAGON_TAG ?= 6.0.1
@@ -55,6 +55,7 @@ RBAC_APP_TAG := $(GRAVITY_TAG)
 # IMPORTANT: When updating tiller version, DO NOT FORGET to bump TILLER_APP_TAG as well!
 TILLER_VERSION = 2.14.3
 TILLER_APP_TAG = 6.1.0
+SELINUX_VERSION ?= 6.0.0
 # URI of Wormhole container for default install
 WORMHOLE_IMG ?= quay.io/gravitational/wormhole:0.2.0
 # set this to true if you want to use locally built planet packages
@@ -68,6 +69,7 @@ VERSION_FLAGS := -X github.com/gravitational/gravity/vendor/github.com/gravitati
 	-X github.com/gravitational/gravity/lib/defaults.WormholeImg=$(WORMHOLE_IMG) \
 	-X github.com/gravitational/gravity/lib/defaults.TeleportVersionString=$(TELEPORT_TAG)
 GRAVITY_LINKFLAGS = "$(VERSION_FLAGS) $(GOLFLAGS)"
+GRAVITY_BUILDTAGS = selinux selinux_embed
 
 TELEKUBE_GRAVITY_PKG := gravitational.io/gravity_$(OS)_$(ARCH):$(GRAVITY_TAG)
 TELEKUBE_TELE_PKG := gravitational.io/tele_$(OS)_$(ARCH):$(GRAVITY_TAG)
@@ -87,7 +89,7 @@ TELEKUBE_APP_PKG := gravitational.io/telekube:$(TELEKUBE_APP_TAG)
 BANDWAGON_PKG := gravitational.io/bandwagon:$(BANDWAGON_TAG)
 RBAC_APP_PKG := gravitational.io/rbac-app:$(RBAC_APP_TAG)
 TILLER_APP_PKG := gravitational.io/tiller-app:$(TILLER_APP_TAG)
-
+SELINUX_POLICY_PKG := gravitational.io/selinux:$(SELINUX_VERSION)
 
 # Output directory that stores all of the build artifacts.
 # Artifacts from the gravity build (the binary and any internal packages)
@@ -140,6 +142,11 @@ TILLER_APP_OUT := $(GRAVITY_BUILDDIR)/tiller-app.tar.gz
 TELEKUBE_OUT := $(GRAVITY_BUILDDIR)/telekube.tar
 TF_PROVIDER_GRAVITY_OUT := $(GRAVITY_BUILDDIR)/terraform-provider-gravity
 TF_PROVIDER_GRAVITYENTERPRISE_OUT := $(GRAVITY_BUILDDIR)/terraform-provider-gravityenterprise
+SELINUX_ASSETSDIR := $(TOP)/lib/system/selinux/internal/policy/assets/centos
+SELINUX_ASSETS := $(SELINUX_ASSETSDIR)/gravity.pp.bz2 \
+		$(SELINUX_ASSETSDIR)/container.pp.bz2 \
+		$(SELINUX_ASSETSDIR)/gravity.statedir.fc.template
+SELINUX_OUT := $(GRAVITY_BUILDDIR)/selinux-policy.tgz
 
 GRAVITY_DIR := /var/lib/gravity
 GRAVITY_ASSETS_DIR := /usr/local/share/gravity
@@ -194,14 +201,14 @@ TF_PROVIDERS ?= terraform-provider-gravity
 export
 
 # the default target is a containerized CI/CD build
-.PHONY:build
+.PHONY: build
 build:
 	$(MAKE) -C build.assets build
 
 # 'install' uses the host's Golang to place output into $GOPATH/bin
-.PHONY:install
+.PHONY: install
 install:
-	go install -ldflags "$(VERSION_FLAGS)" ./tool/tele ./tool/gravity
+	go install -ldflags $(GRAVITY_LINKFLAGS) -tags "$(GRAVITY_BUILDTAGS)" ./tool/tele ./tool/gravity
 
 # 'clean' removes the build artifacts
 .PHONY: clean
@@ -211,12 +218,11 @@ clean:
 	@rm -f $(GOPATH)/bin/tele $(GOPATH)/bin/gravity
 
 
-.PHONY:
+.PHONY: production
 production: TMP := $(shell mktemp -d)
 production:
 	GRAVITY="$(GRAVITY_OUT) --state-dir=$(TMP)" $(MAKE) -C build.assets production
 	rm -rf $(TMP)
-
 
 #
 # generate GRPC files
@@ -339,45 +345,39 @@ ci:
 # '$(MAKE) packages' builds and imports all dependency packages
 #
 .PHONY: packages
-packages:
-	if [ -z "$(DEV_PLANET)" ]; then \
-	  $(MAKE) planet-packages; \
-	else \
-	  $(MAKE) dev-planet-packages; \
-	fi;
+packages: planet-packages binary-packages teleport-package gravity-packages dns-packages\
+	rbac-app-package bandwagon-package tiller-package monitoring-package\
+	log-package k8s-packages telekube-packages selinux-policy-package
 
-# binary packages for quick download
-	$(MAKE) binary-packages
-
+.PHONY: teleport-package
+teleport-package:
 # teleport - access and identity layer
 	$(GRAVITY) package delete $(TELEPORT_PKG) $(DELETE_OPTS) && \
 	$(GRAVITY) package import $(TELEPORT_OUT) $(TELEPORT_PKG) --ops-url=$(OPS_URL)
 
-	$(MAKE) gravity-packages
-
-	-$(MAKE) dns-packages
-	-$(MAKE) rbac-app-package
-
+.PHONY: bandwagon-package
+bandwagon-package:
 # Bandwagon - installer extension
 	- $(GRAVITY) app delete $(BANDWAGON_PKG) $(DELETE_OPTS) && \
 	  $(GRAVITY) app import $(BANDWAGON_OUT) $(VENDOR_OPTS)
 
+.PHONY: tiller-package
+tiller-package:
 # Tiller server
 	- $(GRAVITY) app delete $(TILLER_APP_PKG) $(DELETE_OPTS) && \
 	  $(GRAVITY) app import $(TILLER_APP_OUT) $(VENDOR_OPTS)
 
+.PHONY: monitoring-package
+monitoring-package:
 # Monitoring - influxdb/grafana
 	- $(GRAVITY) app delete $(MONITORING_APP_PKG) $(DELETE_OPTS) && \
 	  $(GRAVITY) app import $(MONITORING_APP_OUT) $(VENDOR_OPTS)
 
+.PHONY: log-package
+log-package:
 # Logging - log forwarding and storage
 	- $(GRAVITY) app delete $(LOGGING_APP_PKG) $(DELETE_OPTS) && \
 	  $(GRAVITY) app import $(LOGGING_APP_OUT) $(VENDOR_OPTS)
-
-	-$(MAKE) k8s-packages
-	-$(MAKE) telekube-packages
-
-
 
 .PHONY: binary-packages
 binary-packages:
@@ -386,7 +386,6 @@ binary-packages:
 
 	$(GRAVITY_OUT) package delete --state-dir=$(LOCAL_STATE_DIR) --force $(TELEKUBE_TELE_PKG) && \
 	$(GRAVITY_OUT) package import --state-dir=$(LOCAL_STATE_DIR) $(TELE_OUT) $(TELEKUBE_TELE_PKG)
-
 
 .PHONY: rbac-app-package
 rbac-app-package:
@@ -414,12 +413,23 @@ telekube-packages:
 	  $(GRAVITY) app import $(TELEKUBE_APP_OUT) --version=$(TELEKUBE_APP_TAG) $(VENDOR_OPTS)
 
 .PHONY: planet-packages
-planet-packages:
+ifndef DEV_PLANET
+planet-packages: planet-package
+else
+planet-packages: dev-planet-package
+endif
+
+.PHONY: planet-package
+planet-package:
 # planet master - RUNC container with k8s master
 	$(GRAVITY) package delete $(PLANET_PKG) $(DELETE_OPTS) && \
 	$(GRAVITY) package import $(PLANET_OUT) $(PLANET_PKG) \
 		--labels=purpose:runtime \
 		--ops-url=$(OPS_URL)
+
+.PHONY: dev-planet-package
+dev-planet-package: PLANET_OUT := $(GOPATH)/src/github.com/gravitational/planet/build/planet.tar.gz
+dev-planet-package: planet-package
 
 .PHONY: dns-packages
 dns-packages:
@@ -432,10 +442,10 @@ web-assets:
 	$(GRAVITY) package delete $(WEB_ASSETS_PKG) $(DELETE_OPTS) && \
 	$(GRAVITY) package import $(WEB_ASSETS_OUT) $(WEB_ASSETS_PKG) --ops-url=$(OPS_URL)
 
-
-.PHONY: dev-planet-packages
-dev-planet-packages: PLANET_OUT := $(GOPATH)/src/github.com/gravitational/planet/build/planet.tar.gz
-dev-planet-packages: planet-packages
+.PHONY: selinux-policy-package
+selinux-policy-package:
+	$(GRAVITY) package delete $(SELINUX_POLICY_PKG) $(DELETE_OPTS) && \
+	$(GRAVITY) package import $(SELINUX_OUT) $(SELINUX_POLICY_PKG) --ops-url=$(OPS_URL)
 
 #
 # publish-artifacts uploads build artifacts to the distribution Ops Center
@@ -464,7 +474,6 @@ $(GRAVITY_BUILDDIR)/telekube.tar: packages
 		--state-dir=$(PACKAGES_DIR) \
 		--skip-version-check \
 		-o $(GRAVITY_BUILDDIR)/telekube.tar
-
 
 #
 # builds wormhole installer
@@ -575,7 +584,7 @@ goinstall: remove-temp-files compile
 
 .PHONY: $(BINARIES)
 $(BINARIES):
-	go install -ldflags $(GRAVITY_LINKFLAGS) $(GRAVITY_PKG_PATH)/tool/$@
+	go install -ldflags $(GRAVITY_LINKFLAGS) -tags "$(GRAVITY_BUILDTAGS)" $(GRAVITY_PKG_PATH)/tool/$@
 
 .PHONY: wizard-publish
 wizard-publish: BUILD_BUCKET_URL = s3://get.gravitational.io
@@ -651,7 +660,7 @@ robotest-installer-ready:
 	mv $(GRAVITY_BUILDDIR)/telekube.tar $(GRAVITY_BUILDDIR)/telekube_ready.tar
 
 .PHONY: dev
-dev: goinstall
+dev: selinux goinstall
 
 # Clean up development environment:
 #  + remove development directories
@@ -750,5 +759,8 @@ fix-logrus:
 	find tool -type f -print0 | xargs -0 sed -i 's/Sirupsen/sirupsen/g'
 	rm -rf vendor/github.com/Sirupsen/logrus
 
+.PHONY: selinux
+selinux:
+	$(MAKE) -C build.assets	selinux
 
 include build.assets/etcd.mk
