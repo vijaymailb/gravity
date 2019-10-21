@@ -18,15 +18,16 @@
 #
 interface(`gravity_role',`
 	gen_require(`
-		type gravity_t, gravity_exec_t, gravity_state_t, gravity_log_t;
+		type gravity_t, gravity_exec_t, gravity_planet_exec_t, gravity_state_t, gravity_log_t;
 		attribute_role gravity_roles;
 	')
 
 	# Allow gravity domain to use the user role
 	roleattribute $1 gravity_roles;
 
-	# Allow domain transition for user domain to gravity_t
+	# Allow domain transition for user domain to gravity/planet
 	domtrans_pattern($2, gravity_exec_t, gravity_t)
+	domtrans_pattern($2, gravity_planet_exec_t, gravity_t)
 
 	# Interact with gravity process
 	ps_process_pattern($2, gravity_t)
