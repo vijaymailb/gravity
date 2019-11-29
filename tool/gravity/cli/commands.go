@@ -399,6 +399,9 @@ type InstallCmd struct {
 	DNSZones *[]string
 	// Remote specifies whether the host should not be part of the cluster
 	Remote *bool
+	// SELinux specifies whether to run with SELinux support.
+	// This flag makes the installer run in its own SELinux domain
+	SELinux *bool
 	// FromService specifies whether this process runs in service mode.
 	//
 	// The installer runs the main installer code in service mode, while
@@ -428,6 +431,9 @@ type JoinCmd struct {
 	CloudProvider *string
 	// OperationID is the ID of the operation created via UI
 	OperationID *string
+	// SELinux specifies whether to run with SELinux support.
+	// This flag makes the installer run in its own SELinux domain
+	SELinux *bool
 	// FromService specifies whether this process runs in service mode.
 	//
 	// The agent runs the install/join code in service mode, while
@@ -976,6 +982,9 @@ type WizardCmd struct {
 	AdvertiseAddr *string
 	// Token is unique install token
 	Token *string
+	// SELinux specifies whether to run with SELinux support.
+	// This flag makes the installer run in its own SELinux domain
+	SELinux *bool
 	// FromService specifies whether this process runs in service mode.
 	//
 	// The installer runs the main installer code in service mode, while
