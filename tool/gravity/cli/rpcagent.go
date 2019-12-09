@@ -335,8 +335,17 @@ func rpcAgentShutdown(env *localenv.LocalEnvironment) error {
 		return trace.Wrap(err)
 	}
 	runner := fsm.NewAgentRunner(creds)
-	err = clusterupdate.ShutdownClusterAgents(context.TODO(), runner)
-	return trace.Wrap(err)
+	operator, err := env.SiteOperator()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cluster, err := operator.GetLocalSite()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), defaults.RPCAgentShutdownTimeout)
+	defer cancel()
+	return rpc.ShutdownAgents(ctx, cluster.ClusterState.Servers.Addrs(), log, runner)
 }
 
 func executeAutomaticUpgrade(ctx context.Context, localEnv, upgradeEnv *localenv.LocalEnvironment, args []string) error {

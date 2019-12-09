@@ -1971,6 +1971,14 @@ func (r Servers) MasterIPs() (ips []string) {
 	return ips
 }
 
+// Addrs returns a list of advertise IPs of the cluster nodes.
+func (r Servers) Addrs() (addrs []string) {
+	for _, s := range r {
+		addrs = append(addrs, s.AdvertiseIP)
+	}
+	return addrs
+}
+
 // String formats this list of servers as text
 func (r Servers) String() string {
 	var formats []string

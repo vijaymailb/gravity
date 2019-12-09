@@ -125,16 +125,16 @@ func SyncChangelog(src storage.Backend, dst storage.Backend, clusterName string,
 	return nil
 }
 
-// isEtcdAvailable verifies that the etcd cluster is healthy
-func isEtcdAvailable(ctx context.Context, logger logrus.FieldLogger) (bool, error) {
-	_, err := utils.RunCommand(ctx, logger, utils.PlanetCommandArgs(defaults.EtcdCtlBin, "cluster-health")...)
-	if err != nil {
-		// etcdctl uses an exit code if the health cannot be checked
-		// so we don't need to return an error
-		if _, ok := trace.Unwrap(err).(*exec.ExitError); ok {
-			return false, nil
-		}
-		return false, trace.Wrap(err)
+// isEtcdAvailable verifies whether the etcd cluster is healthy
+func isEtcdAvailable(ctx context.Context, logger logrus.FieldLogger) (available bool, err error) {
+	_, err = utils.RunCommand(ctx, logger, utils.PlanetCommandArgs(defaults.EtcdCtlBin, "cluster-health")...)
+	if err == nil {
+		return true, nil
 	}
-	return true, nil
+	// etcdctl uses an exit code if the health cannot be checked
+	// so we don't need to return an error
+	if _, ok := trace.Unwrap(err).(*exec.ExitError); ok {
+		return false, nil
+	}
+	return false, trace.Wrap(err)
 }

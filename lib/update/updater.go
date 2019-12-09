@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/gravity/lib/constants"
+	"github.com/gravitational/gravity/lib/defaults"
 	"github.com/gravitational/gravity/lib/fsm"
 	"github.com/gravitational/gravity/lib/loc"
 	"github.com/gravitational/gravity/lib/localenv"
@@ -119,7 +120,18 @@ func (r *Updater) Complete(fsmErr error) error {
 	if fsmErr == nil {
 		fsmErr = trace.Errorf("completed manually")
 	}
-	return r.machine.Complete(fsmErr)
+	if err := r.machine.Complete(fsmErr); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// Activate activates the cluster.
+func (r *Updater) Activate() error {
+	return r.Operator.ActivateSite(ops.ActivateSiteRequest{
+		AccountID:  r.Operation.AccountID,
+		SiteDomain: r.Operation.SiteDomain,
+	})
 }
 
 // GetPlan returns the up-to-date operation plan
@@ -130,6 +142,13 @@ func (r *Updater) GetPlan() (*storage.OperationPlan, error) {
 // Close closes the underlying FSM
 func (r *Updater) Close() error {
 	return r.machine.Close()
+}
+
+// Shutdown shuts down the agents on remote nodes
+func (r *Updater) Shutdown() error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaults.RPCAgentShutdownTimeout)
+	defer cancel()
+	return r.shutdownClusterAgents(ctx)
 }
 
 func (r *Updater) executePlan(ctx context.Context) error {
@@ -151,12 +170,8 @@ func (r *Updater) executePlan(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	var addrs []string
-	for _, server := range r.servers {
-		addrs = append(addrs, server.AdvertiseIP)
-	}
-	if errShutdown := rpc.ShutdownAgents(ctx, addrs, r.FieldLogger, r.Runner); errShutdown != nil {
-		r.Warnf("Failed to shutdown agents: %v.", trace.DebugReport(errShutdown))
+	if err := r.shutdownClusterAgents(ctx); err != nil {
+		r.WithError(err).Warn("Failed to shutdown agents.")
 	}
 	return nil
 }
@@ -172,6 +187,15 @@ func (r *Updater) updateProgress(lastProgress *ops.ProgressEntry) *ops.ProgressE
 			progress.Message)
 	}
 	return progress
+}
+
+// shutdownClusterAgents submits a shutdown request to all agents
+func (r *Updater) shutdownClusterAgents(ctx context.Context) error {
+	nodeAddrs := make([]string, 0, len(r.servers))
+	for _, s := range r.servers {
+		nodeAddrs = append(nodeAddrs, s.AdvertiseIP)
+	}
+	return rpc.ShutdownAgents(ctx, nodeAddrs, r.FieldLogger, r.Config.Runner)
 }
 
 // CheckAndSetDefaults validates this object and sets defaults where necessary

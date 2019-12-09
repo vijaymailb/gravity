@@ -123,7 +123,16 @@ func completeUpdatePlan(env, updateEnv *localenv.LocalEnvironment, operation ops
 		return trace.Wrap(err)
 	}
 	defer updater.Close()
-	return trace.Wrap(updater.Complete(nil))
+	if err := updater.Complete(nil); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := updater.Activate(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := updater.Shutdown(); err != nil {
+		log.WithError(err).Warn("Failed to shut down cluster agents.")
+	}
+	return nil
 }
 
 func getClusterUpdater(localEnv, updateEnv *localenv.LocalEnvironment, operation ops.SiteOperation, noValidateVersion bool) (*update.Updater, error) {

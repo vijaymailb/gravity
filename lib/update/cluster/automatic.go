@@ -22,10 +22,8 @@ import (
 	"github.com/gravitational/gravity/lib/fsm"
 	"github.com/gravitational/gravity/lib/localenv"
 	"github.com/gravitational/gravity/lib/ops"
-	"github.com/gravitational/gravity/lib/rpc"
 	"github.com/gravitational/gravity/lib/storage"
 	"github.com/gravitational/gravity/lib/update"
-	"github.com/gravitational/gravity/lib/utils/kubectl"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -82,21 +80,10 @@ func AutomaticUpgrade(ctx context.Context, localEnv, updateEnv *localenv.LocalEn
 	}
 
 	if fsmErr == nil {
-		err = ShutdownClusterAgents(ctx, runner)
+		err = fsm.Shutdown()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return trace.Wrap(fsmErr)
-}
-
-// ShutdownClusterAgents submits a shutdown request to all agents
-func ShutdownClusterAgents(ctx context.Context, remote rpc.AgentRepository) error {
-	nodes, err := kubectl.GetNodesAddr(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = rpc.ShutdownAgents(ctx, nodes, log.StandardLogger(), remote)
-	return trace.Wrap(err)
 }
