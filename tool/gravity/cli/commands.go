@@ -1603,6 +1603,8 @@ type SystemSelinuxBootstrapCmd struct {
 	// Path specifies the optional output file where the bootstrap script is saved.
 	// In this case, the command does not execute the script
 	Path *string
+	// VxlanPort optionally specifies the new vxlan port
+	VxlanPort *int
 }
 
 // SystemGCJournalCmd manages cleanup of journal files
