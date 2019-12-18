@@ -87,7 +87,7 @@ func newOperationPlan(
 	updateMasters := *builder.Masters(
 		masters,
 		"Update cluster configuration",
-		"Update configuration on node %q",
+		"Update cluster configuration on node %q",
 	).Require(config)
 	phases := update.Phases{config, updateMasters}
 
@@ -95,7 +95,7 @@ func newOperationPlan(
 		updateNodes := *builder.Nodes(
 			nodes, masters[0].Server,
 			"Update cluster configuration",
-			"Update configuration on node %q",
+			"Update cluster configuration on node %q",
 		).Require(config, updateMasters)
 		phases = append(phases, updateNodes)
 	}

@@ -104,7 +104,7 @@ func (S) TestSingleNodePlan(c *C) {
 				Phases: []storage.OperationPhase{
 					{
 						ID:          "/masters/node-1",
-						Description: `Update configuration on node "node-1"`,
+						Description: `Update cluster configuration on node "node-1"`,
 						Phases: []storage.OperationPhase{
 							{
 								ID:          "/masters/node-1/drain",
@@ -266,7 +266,7 @@ func (S) TestMultiNodePlan(c *C) {
 				Phases: []storage.OperationPhase{
 					{
 						ID:          "/masters/node-1",
-						Description: `Update configuration on node "node-1"`,
+						Description: `Update cluster configuration on node "node-1"`,
 						Phases: []storage.OperationPhase{
 							{
 								ID:          "/masters/node-1/stepdown",
