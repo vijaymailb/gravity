@@ -1822,6 +1822,8 @@ type InstallExpandOperationState struct {
 	Vars OperationVariables `json:"vars"`
 	// Package is the application being installed
 	Package loc.Locator `json:"package"`
+	// SELinux specifies whether to use SELinux support
+	SELinux bool `json:"selinux,omitempty"`
 }
 
 // OperationVariables is operation-specific set of variables
@@ -1862,6 +1864,8 @@ type SystemVariables struct {
 	TeleportProxyAddress string `json:"teleport_proxy_address"`
 	// Docker overrides configuration from the manifest
 	Docker DockerConfig `json:"docker"`
+	// SELinux specifies whether the cluster is using SELinux support
+	SELinux bool `json:"selinux,omitempty"`
 }
 
 // IsEmpty returns whether this configuration is empty

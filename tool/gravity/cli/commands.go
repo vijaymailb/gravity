@@ -612,6 +612,9 @@ type UpdateTriggerCmd struct {
 	Manual *bool
 	// SkipVersionCheck suppresses version mismatch errors
 	SkipVersionCheck *bool
+	// SELinux specifies whether to run with SELinux support.
+	// This flag makes the installer run in its own SELinux domain
+	SELinux *bool
 }
 
 // UpdateUploadCmd uploads new app version to local cluster
@@ -663,6 +666,9 @@ type UpgradeCmd struct {
 	Resume *bool
 	// SkipVersionCheck suppresses version mismatch errors
 	SkipVersionCheck *bool
+	// SELinux specifies whether to run with SELinux support.
+	// This flag makes the installer run in its own SELinux domain
+	SELinux *bool
 }
 
 // StatusCmd displays cluster status
