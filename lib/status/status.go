@@ -37,6 +37,7 @@ import (
 	pb "github.com/gravitational/satellite/agent/proto/agentpb"
 	"github.com/gravitational/satellite/monitoring"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/version"
 	"github.com/sirupsen/logrus"
 )
 
@@ -51,7 +52,21 @@ func FromCluster(ctx context.Context, operator ops.Operator, cluster ops.Site, o
 			Reason:    cluster.Reason,
 			App:       cluster.App.Package,
 			Extension: newExtension(),
+			Overrides: Overrides{
+				SELinux: cluster.SELinux,
+			},
 		},
+		Version: version.Get(),
+	}
+
+	// FIXME: move to a dedicated function
+	installOperation, _, err := ops.GetInstallOperation(cluster.Key(), operator)
+	if err != nil {
+		return status, trace.Wrap(err)
+	}
+	vxlanPort := installOperation.InstallExpand.Vars.OnPrem.VxlanPort
+	if vxlanPort != defaults.VxlanPort {
+		status.Overrides.VxlanPort = vxlanPort
 	}
 
 	token, err := operator.GetExpandToken(cluster.Key())
@@ -175,6 +190,8 @@ type Status struct {
 	*Cluster `json:",inline,omitempty"`
 	// Agent describes the status of the system and individual nodes
 	*Agent `json:",inline,omitempty"`
+	// Version indicates the version of the gravity binary
+	Version version.Info `json:"version"`
 }
 
 // Cluster encapsulates collected cluster status information
@@ -197,7 +214,9 @@ type Cluster struct {
 	// Endpoints contains cluster and application endpoints.
 	Endpoints Endpoints `json:"endpoints"`
 	// Extension is a cluster status extension
-	Extension `json:",inline,omitempty"`
+	Extension Extension `json:"extension"`
+	// Overrides describes cluster configuration changes
+	Overrides `json:",inline"`
 }
 
 // Endpoints contains information about cluster and application endpoints.
@@ -270,6 +289,15 @@ func (e ApplicationsEndpoints) WriteTo(w io.Writer) (n int64, err error) {
 		}
 	}
 	return n, trace.NewAggregate(errors...)
+}
+
+// Overrides describes cluster configuration overrides
+type Overrides struct {
+	// SELinux indicates whether the SELinux support is on
+	SELinux bool `json:"selinux,omitempty"`
+	// VxlanPort specifies the VXLAN port if it has been configured different
+	// to the default
+	VxlanPort int `json:"vxlanPort,omitempty"`
 }
 
 func fprintf(n *int64, w io.Writer, format string, a ...interface{}) error {
