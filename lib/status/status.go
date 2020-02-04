@@ -51,22 +51,10 @@ func FromCluster(ctx context.Context, operator ops.Operator, cluster ops.Site, o
 			State:     ops.SiteStateDegraded,
 			Reason:    cluster.Reason,
 			App:       cluster.App.Package,
+			SELinux:   cluster.SELinux,
 			Extension: newExtension(),
-			Overrides: Overrides{
-				SELinux: cluster.SELinux,
-			},
 		},
 		Version: version.Get(),
-	}
-
-	// FIXME: move to a dedicated function
-	installOperation, _, err := ops.GetInstallOperation(cluster.Key(), operator)
-	if err != nil {
-		return status, trace.Wrap(err)
-	}
-	vxlanPort := installOperation.InstallExpand.Vars.OnPrem.VxlanPort
-	if vxlanPort != defaults.VxlanPort {
-		status.Overrides.VxlanPort = vxlanPort
 	}
 
 	token, err := operator.GetExpandToken(cluster.Key())
@@ -215,8 +203,8 @@ type Cluster struct {
 	Endpoints Endpoints `json:"endpoints"`
 	// Extension is a cluster status extension
 	Extension Extension `json:"extension"`
-	// Overrides describes cluster configuration changes
-	Overrides `json:",inline"`
+	// SELinux indicates whether the SELinux support is on
+	SELinux bool `json:"selinux,omitempty"`
 }
 
 // Endpoints contains information about cluster and application endpoints.
@@ -289,15 +277,6 @@ func (e ApplicationsEndpoints) WriteTo(w io.Writer) (n int64, err error) {
 		}
 	}
 	return n, trace.NewAggregate(errors...)
-}
-
-// Overrides describes cluster configuration overrides
-type Overrides struct {
-	// SELinux indicates whether the SELinux support is on
-	SELinux bool `json:"selinux,omitempty"`
-	// VxlanPort specifies the VXLAN port if it has been configured different
-	// to the default
-	VxlanPort int `json:"vxlanPort,omitempty"`
 }
 
 func fprintf(n *int64, w io.Writer, format string, a ...interface{}) error {

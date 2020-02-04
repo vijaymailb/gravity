@@ -795,6 +795,14 @@
   revision = "bbcb9da2d746f8bdbd6a936686a0a6067ada0ec5"
 
 [[projects]]
+  branch = "master"
+  digest = "1:ae4407ca7731ceb7b54b059fced30f335d32486a2148e262b19067261f959b42"
+  name = "github.com/google/shlex"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e7afc7fbc51079733e9468cdfd1efcd7d196cd1d"
+
+[[projects]]
   digest = "1:236d7e1bdb50d8f68559af37dbcf9d142d56b431c9b2176d41e2a009b664cda8"
   name = "github.com/google/uuid"
   packages = ["."]
@@ -935,7 +943,7 @@
 
 [[projects]]
   branch = "dmitri/6.1.x/3224-selinux"
-  digest = "1:8e4362522d606481c32ee3a5074441be0c8c6dfffc0efac607173df312fe78aa"
+  digest = "1:226dbb6ef9b752fa759b846a813eea2acb719300e210d7817fcee535dee5ccf4"
   name = "github.com/gravitational/satellite"
   packages = [
     "agent",
@@ -947,7 +955,7 @@
     "utils",
   ]
   pruneopts = "UT"
-  revision = "269b3278886875c5c38fbfb734cc01a340a6437e"
+  revision = "e1a0a827686336e4b060228be35f3e585fc706a8"
 
 [[projects]]
   digest = "1:49f6abbce9ade5f43508429e4af1adcce55d27adcd62719fea049decc766a7c9"
@@ -2930,6 +2938,7 @@
     "github.com/gokyle/hotp",
     "github.com/golang/protobuf/proto",
     "github.com/golang/protobuf/ptypes/any",
+    "github.com/google/shlex",
     "github.com/gravitational/configure",
     "github.com/gravitational/configure/cstrings",
     "github.com/gravitational/configure/schema",
