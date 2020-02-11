@@ -68,7 +68,7 @@ ignored = [
 
 [[constraint]]
   name = "github.com/gravitational/satellite"
-  #version = "=6.1.2"
+  #version = "=6.1.4"
   branch = "dmitri/6.1.x/3224-selinux"
 
 [[constraint]]

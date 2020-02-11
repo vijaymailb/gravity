@@ -943,19 +943,24 @@
 
 [[projects]]
   branch = "dmitri/6.1.x/3224-selinux"
-  digest = "1:226dbb6ef9b752fa759b846a813eea2acb719300e210d7817fcee535dee5ccf4"
+  digest = "1:63c3af66b966b22b3185013663117570d254a4deb679b8e4a65c578814747608"
   name = "github.com/gravitational/satellite"
   packages = [
     "agent",
     "agent/cache",
     "agent/health",
     "agent/proto/agentpb",
+    "lib/history",
+    "lib/history/sqlite",
     "lib/kubernetes",
+    "lib/membership",
+    "lib/rpc",
+    "lib/rpc/client",
     "monitoring",
     "utils",
   ]
   pruneopts = "UT"
-  revision = "e1a0a827686336e4b060228be35f3e585fc706a8"
+  revision = "25d05a6280bdb7bbb47406b47e39bc48c4118850"
 
 [[projects]]
   digest = "1:49f6abbce9ade5f43508429e4af1adcce55d27adcd62719fea049decc766a7c9"
@@ -1055,6 +1060,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "ffae935cafba0fac6023a96832e48d0fec6417ba"
+
+[[projects]]
+  branch = "master"
+  digest = "1:98450c86949b8cdc4637b80c1c686ca955e503d3fbae9296d1f49c532895d281"
+  name = "github.com/gravitational/vfsgen"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "6a9ea43bcacdf716a5c1b38efff722c07adf0069"
 
 [[projects]]
   branch = "master"
@@ -1332,12 +1345,12 @@
   version = "v1.2.0"
 
 [[projects]]
-  digest = "1:75ab90ae3f5d876167e60f493beadfe66f0ed861a710f283fb06c86437a09538"
+  branch = "master"
+  digest = "1:35f49695a600c368ad7811a672d583b3e004b44fe883a0a1eb2a6c0d75eaeb1b"
   name = "github.com/jonboulle/clockwork"
   packages = ["."]
   pruneopts = "UT"
-  revision = "2eee05ed794112d45db504eb05aa693efd2b8b09"
-  version = "v0.1.0"
+  revision = "62fb9bc030d14f92c58df3c1601e50a0e445edef"
 
 [[projects]]
   digest = "1:3e551bbb3a7c0ab2a2bf4660e7fcad16db089fdcfbb44b0199e62838038623ea"
@@ -1503,6 +1516,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "737072b4e32b7a5018b4a7125da8d12de90e8045"
+
+[[projects]]
+  digest = "1:f4d329a16a6f1a7f694148ec7531f85d62cfa6a79bb8200ca612667e40d09923"
+  name = "github.com/mattn/go-sqlite3"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "590d44c02bca83987d23f6eab75e6d0ddf95f644"
+  version = "v1.13.0"
 
 [[projects]]
   digest = "1:fb04e8f83a0a1be6c248fb11e439edf7a1540da1eb903801d5e1c2047ce9f091"
@@ -1754,13 +1775,14 @@
   revision = "54653902c20e47f3417541d35435cb6d6162e28a"
 
 [[projects]]
-  digest = "1:b8fc32232f276bebfed92b136bce3c9efc600afbf8abb76aa6406a75ab24d9e5"
+  digest = "1:4594833620d039a1c1e889d445988edfc2cdcc95b7e5f40fd63a9d17e2f2ed3f"
   name = "github.com/prometheus/client_golang"
   packages = [
     "api",
     "api/prometheus/v1",
     "prometheus",
     "prometheus/internal",
+    "prometheus/promhttp",
   ]
   pruneopts = "UT"
   revision = "505eaef017263e299324067d40ca2c48f6a2cf50"
@@ -1866,6 +1888,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "e2103e2c35297fb7e17febb81e49b312087a2372"
+
+[[projects]]
+  branch = "master"
+  digest = "1:68cecd4c1137f77dfa2db1f13a0ceef2b5606d6b69d66fa69f7df1b2f2fe9afc"
+  name = "github.com/shurcooL/httpfs"
+  packages = ["vfsutil"]
+  pruneopts = "UT"
+  revision = "8d4bc4ba774931155e6cd5ef6098cb038dd45135"
 
 [[projects]]
   branch = "master"
@@ -2982,6 +3012,7 @@
     "github.com/gravitational/trace",
     "github.com/gravitational/ttlmap",
     "github.com/gravitational/version",
+    "github.com/gravitational/vfsgen",
     "github.com/hashicorp/terraform/helper/schema",
     "github.com/hashicorp/terraform/plugin",
     "github.com/hashicorp/terraform/terraform",
