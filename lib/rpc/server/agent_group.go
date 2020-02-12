@@ -228,7 +228,7 @@ func (r *AgentGroup) updateLoop() {
 			select {
 			case r.WatchCh <- update:
 			default:
-				log.Infof("Dropped update notification for %v.", update)
+				r.Infof("Dropped update notification for %v.", update)
 			}
 			select {
 			case r.recvCh <- update:

@@ -218,7 +218,7 @@ func (r *peers) checkPeer(p Peer, clt Client, reconnectCh chan<- chan clientUpda
 
 func (r *peers) reconnectPeer(p Peer, reqCh <-chan chan clientUpdate, doneCh chan struct{}) {
 	log := r.WithField("reconnected", p)
-	log.Info("Reconnecting")
+	log.Info("Reconnecting.")
 	defer log.Info("Reconnect loop closing.")
 	for {
 		select {

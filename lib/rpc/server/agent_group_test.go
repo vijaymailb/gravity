@@ -58,7 +58,7 @@ func (r *S) TestAgentGroupExecutesCommandsRemotety(c *C) {
 	l := listen(c)
 	log := r.WithField("test", "AgentGroupExecutesCommandsRemotety")
 	srv, err := New(Config{
-		FieldLogger:     log.WithField("from", l.Addr()),
+		FieldLogger:     log.WithField("testserver", l.Addr()),
 		Credentials:     creds,
 		PeerStore:       store,
 		Listener:        l,
@@ -100,9 +100,10 @@ func (r *S) TestAgentGroupExecutesCommandsRemotety(c *C) {
 	timeout := time.After(1 * time.Minute)
 	for i := 0; i < 2; i++ {
 		select {
-		case <-watchCh:
+		case update := <-watchCh:
+			c.Logf("Received connect update: %v.", update)
 		case <-timeout:
-			c.Error("failed to wait for reconnect")
+			c.Error("Failed to wait for reconnect.")
 		}
 	}
 

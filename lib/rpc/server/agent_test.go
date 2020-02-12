@@ -357,7 +357,7 @@ func (r *S) clientExecutesCommandsWithClient(c *C, clt client.Client, srv *agent
 }
 
 func (r *S) newPeer(c *C, config PeerConfig, serverAddr string, log log.FieldLogger) *PeerServer {
-	config.FieldLogger = log.WithField("peer", config.Listener.Addr())
+	config.FieldLogger = log.WithField("testpeer", config.Listener.Addr())
 	return NewTestPeer(c, config, serverAddr,
 		testCommand{"test output"}, TestSystemInfo{},
 	)
@@ -376,14 +376,16 @@ type rejectingStore struct{}
 // newPeerStore creates a new peer store
 func newPeerStore() *peerStore {
 	return &peerStore{
-		peers:  make(map[string]Peer),
-		peerCh: make(chan struct{}, 1),
+		FieldLogger: log.WithField(trace.Component, "testpeerstore"),
+		peers:       make(map[string]Peer),
+		peerCh:      make(chan struct{}, 1),
 	}
 }
 
 // peerStore receives notifications about peers joining the cluster.
 // It implements PeerStore.
 type peerStore struct {
+	log.FieldLogger
 	// peerCh gets notified when a new peer joins
 	peerCh chan struct{}
 	// Mutex protecting the following fields
@@ -393,6 +395,7 @@ type peerStore struct {
 
 // NewPeer receives a new peer
 func (r *peerStore) NewPeer(ctx context.Context, req pb.PeerJoinRequest, peer Peer) error {
+	r.WithField("peer", peer).Info("NewPeer.")
 	r.add(peer)
 
 	// Attempt to notify about the new peer
@@ -406,6 +409,7 @@ func (r *peerStore) NewPeer(ctx context.Context, req pb.PeerJoinRequest, peer Pe
 
 // RemovePeer removes the specified peer
 func (r *peerStore) RemovePeer(ctx context.Context, req pb.PeerLeaveRequest, peer Peer) error {
+	r.WithField("peer", peer).Info("RemovePeer.")
 	r.remove(peer)
 	return nil
 }
@@ -430,6 +434,7 @@ func (r *peerStore) expect(ctx context.Context, peers int) error {
 	peers = peers - len(r.peers)
 	r.Unlock()
 	for peers > 0 {
+		r.WithField("joining", peers).Info("Not all peers joined.")
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
@@ -451,6 +456,7 @@ func (r *peerStore) add(peer Peer) {
 }
 
 func (r *peerStore) remove(peer Peer) {
+	r.Info("Peer left.")
 	r.Lock()
 	defer r.Unlock()
 	delete(r.peers, peer.Addr())
