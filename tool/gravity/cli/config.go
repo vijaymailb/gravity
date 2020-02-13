@@ -464,12 +464,11 @@ func (i *InstallConfig) BootstrapSELinux(printer utils.Printer) error {
 		i.SELinux = false
 		return nil
 	}
-	printer.PrintStep("Bootstrapping installer for SELinux")
 	return BootstrapSELinuxAndRespawn(selinux.BootstrapConfig{
 		StateDir:  i.SystemStateDir,
 		VxlanPort: &i.VxlanPort,
 		OS:        *metadata,
-	})
+	}, printer)
 }
 
 func (i *InstallConfig) validateApplicationDir() error {
@@ -828,11 +827,10 @@ func (j *JoinConfig) bootstrapSELinux(printer utils.Printer) error {
 		j.SELinux = false
 		return nil
 	}
-	printer.PrintStep("Bootstrapping installer for SELinux")
 	return BootstrapSELinuxAndRespawn(selinux.BootstrapConfig{
 		StateDir: j.SystemStateDir,
 		OS:       *metadata,
-	})
+	}, printer)
 }
 
 func (r *removeConfig) checkAndSetDefaults() error {
@@ -893,10 +891,9 @@ func (r *autojoinConfig) bootstrapSELinux(printer utils.Printer) error {
 		r.selinux = false
 		return nil
 	}
-	printer.PrintStep("Bootstrapping installer for SELinux")
 	return BootstrapSELinuxAndRespawn(selinux.BootstrapConfig{
 		OS: *metadata,
-	})
+	}, printer)
 }
 
 type autojoinConfig struct {
