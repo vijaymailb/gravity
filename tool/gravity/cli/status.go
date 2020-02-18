@@ -285,7 +285,9 @@ func printStatusText(cluster clusterStatus) {
 }
 
 func printClusterStatus(cluster statusapi.Cluster, w io.Writer) {
-	fmt.Fprintf(w, "SELinux support:\t%v\n", formatSELinuxStatus(cluster.SELinux))
+	if cluster.SELinux {
+		fmt.Fprintf(w, "SELinux support:\t%v\n", formatSELinuxStatus(cluster.SELinux))
+	}
 	if cluster.App.Name != "" {
 		fmt.Fprintf(w, "Application:\t%v, version %v\n", cluster.App.Name,
 			cluster.App.Version)

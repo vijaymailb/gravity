@@ -202,7 +202,7 @@ type Cluster struct {
 	// Endpoints contains cluster and application endpoints.
 	Endpoints Endpoints `json:"endpoints"`
 	// Extension is a cluster status extension
-	Extension Extension `json:"extension"`
+	Extension Extension `json:"-"`
 	// SELinux indicates whether the SELinux support is on
 	SELinux bool `json:"selinux,omitempty"`
 }
