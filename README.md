@@ -2,6 +2,7 @@
     <img src='https://gravitational.com/gravitational/images/logos/logo-gravity-x-large.png' alt='Gravity'>
 </a>
 
+
 Gravity is an [upstream Kubernetes](https://kubernetes.io/) packaging solution
 that takes the drama out of deploying and running applications in someone
 else's cloud accounts, on-premise data centers, edge locations and other
