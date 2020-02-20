@@ -179,6 +179,8 @@ type Config struct {
 	Packages update.LocalPackageService
 	// FieldLogger specifies the logger
 	logrus.FieldLogger
+	// SELinux controls SELinux support
+	SELinux bool
 }
 
 func (r *PackageUpdates) checkAndSetDefaults() error {
@@ -232,6 +234,7 @@ func (r *System) applyUpdates(ctx context.Context, updates []storage.PackageUpda
 	packageUpdater := &PackageUpdater{
 		Logger:   log.New(r.WithField(trace.Component, "update:package")),
 		Packages: r.Packages,
+		SELinux:  r.SELinux,
 	}
 	for _, u := range updates {
 		r.WithField("update", u).Info("Applying.")
@@ -692,7 +695,7 @@ func uninstallPackage(
 		logger.WithField("service", servicePackage).Info("Package installed as a service, will uninstall.")
 		err = services.UninstallPackageService(servicePackage)
 		if err != nil {
-			return nil, utils.NewUninstallServiceError(servicePackage)
+			return nil, utils.NewUninstallServiceError(err, servicePackage)
 		}
 	}
 	updates = append(updates, pack.LabelUpdate{
