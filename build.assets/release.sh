@@ -4,14 +4,9 @@ set -e
 TEMP_DIR="$(mktemp -d)"
 trap "rm -rf ${TEMP_DIR}" exit
 
-# These commands add the following assets to the release tarball:
-# install.sh
-# LICENSE
-# README.md
-# tele
-# tsh
-# VERSION
-cp ${TSH_OUT} ${TELE_OUT} install.sh README.md ../LICENSE ${TEMP_DIR}
+# Add assets to the release tarball
+cp ${TSH_OUT} ${TELE_OUT} install.sh ../LICENSE ${TEMP_DIR}
+cp release-tarball-README.md ${TEMP_DIR}/README.md
 ../version.sh > ${TEMP_DIR}/VERSION
 
 tar -C ${TEMP_DIR} -zcvf ${RELEASE_OUT} .
