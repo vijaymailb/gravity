@@ -299,8 +299,11 @@ hub-vars:
 # produce release tarball with binaries
 #
 .PHONY: release
-release:
+release: $(RELEASE_OUT)
+
+$(RELEASE_OUT): $(TELE_OUT) $(TSH_OUT) release.sh release-tarball-README.md install.sh ../LICENSE ../version.sh
 	$(BASH) ./release.sh
+	@echo "release built at $(RELEASE_OUT)"
 
 .PHONY: push-gravity
 push-gravity:
