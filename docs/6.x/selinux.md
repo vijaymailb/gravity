@@ -26,9 +26,22 @@ Policy from config file:        targeted
 ...
 ```
 
-Map a Linux user (here, `user`) to SELinux user (i.e. `staff_u`):
+Next, the Linux user to perform the installation needs to be mapped to a SELinux user.
+Installer needs needs to run with an administrative role capable of loading the policy - for example, `sysadm_r`.
+
+To check exsisting mappings, use the following:
+
+```sh
+$ semanage login -l
+```
+
+To map the Linux user `user` to a SELinux user `staff_u`, do the following:
 ```sh
 $ semanage login -a -s staff_u user
+```
+or modify the mapping with:
+```
+$ semanage login -m -s staff_u user
 ```
 
 Switch to the `sysadm_r` role:
@@ -36,15 +49,51 @@ Switch to the `sysadm_r` role:
 $ sudo -r sysadm_r -i
 ```
 
-Alternatively, run the installer using the role `sysadm_r` and type `sysadm_t`:
+Alternatively, directly run the installer using the role `sysadm_r` and type `sysadm_t`:
 ```sh
 $ runcon -r sysadm_r -t sysadm_t ./gravity install ...
+```
+
+### Installation
+
+The install operation was not changed except for the new implicit bootstrapping step that:
+
+  * loads the Gravity SELinux policy module
+  * creates local port bindings for Gravity and Kubernetes-specific ports
+  * creates local file contexts for paths used during the install
+
+To start the installation, use the `gravity install` command as usual:
+
+```sh
+$ gravity install ...
+ Bootstrapping installer for SELinux
+ ...
+```
+
+Likewise, on the joining node:
+
+```sh
+$ gravity join ...
+ Bootstrapping installer for SELinux
+ ...
+```
+
+SELinux support can be turnd off explicitly with `--no-selinux` specified on the `gravity isntall` command line:
+
+```sh
+$ gravity install --no-selinux ...
+```
+
+This needs to be done explicitly for joining nodes as well if using the command line interface:
+
+```sh
+$ gravity join --no-selinux ...
 ```
 
 
 ### Upgrades
 
-The upgrade only turns SELinux support for a cluster previously installed with SELinux support.
+The upgrade runs with SELinux support only if the cluster was previously installed with SELinux support.
 
 
 ### Custom SELinux policies
@@ -65,3 +114,18 @@ Currently the following distributions are supported:
 
 
 ### Troubleshooting
+
+If the installer fails, pay attention to the errors about denied permissions which might be the indicator of an SELinux issue.
+
+Unfortunately, SELinux has a UI problem as it might not be immediately obvious whether a particular 'permission denied' refers to the Linux denying
+DAC (Discretionary Access Control) access or SELinux has denied access - SELinux verifications happen only after DAC check.
+
+In order to check whether the denial is specific to SELinux, one needs to look into the SELinux audit log.
+While the audit log (found in `/var/log/audit/audit.log`) can be inspected directly, it is easier to use a tool that can interpret the log and present
+the results in a more readable way.
+
+For example, to check for all relevant SELinux denials, use the following:
+
+```sh
+$ sealert -ts recent -t AVC, SELINUX_AVC, 
+```
