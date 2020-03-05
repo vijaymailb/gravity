@@ -7,25 +7,27 @@ readonly UPGRADE_FROM_DIR=${1:-$(pwd)/../upgrade_from}
 declare -A UPGRADE_MAP
 
 # latest patch release on this release, keep this up to date
-UPGRADE_MAP[5.5.37]="ubuntu:16"
+UPGRADE_MAP[5.5.37]="ubuntu:18"
 
 # latest patch release on previous compatible LTS, keep this up to date
 UPGRADE_MAP[5.2.16]="ubuntu:16"
 
 # first release from this release & last LTS, these don't need to change until a new major/minor release
-UPGRADE_MAP[5.5.0]="ubuntu:16"
-UPGRADE_MAP[5.2.0]="ubuntu:16"
+# centos/rhel chosen just for variety
+UPGRADE_MAP[5.5.0]="redhat:7"
+UPGRADE_MAP[5.2.0]="centos:7"
 
-# via intermediate upgrade
-UPGRADE_MAP[5.0.35]="ubuntu:16"
+# via intermediate upgrade, debian for variety
+UPGRADE_MAP[5.0.35]="debian:8"
 
 # important versions in the field, per:
 # https://github.com/gravitational/robotest/issues/155#issuecomment-589743687
-UPGRADE_MAP[5.2.12]="ubuntu:16"
-UPGRADE_MAP[5.5.19]="ubuntu:16"
-UPGRADE_MAP[5.5.20]="ubuntu:16"
-UPGRADE_MAP[5.5.28]="ubuntu:16"
-UPGRADE_MAP[5.5.36]="ubuntu:16"
+# the customers that use these run RHEL 7 or 8
+UPGRADE_MAP[5.2.12]="redhat:7"
+UPGRADE_MAP[5.5.19]="redhat:7"
+UPGRADE_MAP[5.5.20]="redhat:7"
+UPGRADE_MAP[5.5.28]="redhat:7"
+UPGRADE_MAP[5.5.36]="redhat:7"
 
 readonly GET_GRAVITATIONAL_IO_APIKEY=${GET_GRAVITATIONAL_IO_APIKEY:?API key for distribution Ops Center required}
 readonly GRAVITY_BUILDDIR=${GRAVITY_BUILDDIR:?Set GRAVITY_BUILDDIR to the build directory}
